@@ -1,0 +1,75 @@
+{
+  "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
+  "name": "Perfion Items",
+  "publisher": "Abilene",
+  "version": "1.0.0.23",
+  "brief": "",
+  "description": "API Query to expose items to Perfion",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "src/img/am-logo-square.png",
+  "dependencies": [
+    {
+      "id": "a8c19647-b664-4902-a66a-c9f19da9121e",
+      "publisher": "Lanham Associates",
+      "name": "Lanham Demand Planning",
+      "version": "20.3.4.15"
+    },
+    {
+      "id": "13dd0d55-3340-471c-8cfe-8880a5147313",
+      "publisher": "Synoptek - DM/RJ",
+      "name": "DropShipment_Boolean_onItem&VendorMaster",
+      "version": "1.0.0.41"
+    },
+    {
+      "id": "220cb943-310d-41c6-869c-e4fc1bd8ba3a",
+      "publisher": "Synoptek-BJ",
+      "name": "SalesOrder Factbox",
+      "version": "1.0.0.15"
+    },
+    {
+      "id": "d7bbc6a6-546f-477c-8460-8eb418f111dc",
+      "publisher": "Abilene",
+      "name": "Abilene SOD",
+      "version": "1.0.0.78"
+    },
+    {
+      "id": "48f56295-5ad7-4acd-9171-01c47b2d386e",
+      "publisher": "Synoptek-BJ",
+      "name": "ExposeDescription2field",
+      "version": "1.0.0.4"
+    },
+    {
+      "id": "4016f542-d919-496e-b800-a5129bfcadce",
+      "publisher": "Synoptek - DM",
+      "name": "Sales orderLine–AssemblyItems",
+      "version": "1.0.0.12"
+    },
+    {
+      "id": "437dbf0e-84ff-417a-965d-ed2bb9650972",
+      "publisher": "Microsoft",
+      "name": "Base Application",
+      "version": "21.5.53619.54899"
+    }
+  ],
+  "screenshots": [],
+  "platform": "1.0.0.0",
+  "application": "21.0.0.0",
+  "idRanges": [
+    {
+      "from": 50100,
+      "to": 50500
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "runtime": "10.0",
+  "features": [
+    "NoImplicitWith"
+  ]
+}
