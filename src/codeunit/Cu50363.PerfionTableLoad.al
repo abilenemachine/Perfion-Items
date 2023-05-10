@@ -22,7 +22,7 @@ codeunit 50363 PerfionTableLoad
                 rec.GTIN := items.GTIN;
                 rec.Blocked := items.Blocked;
                 rec."Replenishment System" := items."Replenishment System";
-                rec."Inventory Posting Group" := items."Inventory Posting Group";
+                rec."Gen. Prod. Posting Group" := getCondition(items);
                 rec."Item Category Code" := items."Item Category Code";
                 rec."Last DateTime Modified" := items."Last DateTime Modified";
                 rec."Drop Ship" := items."Drop Ship";
@@ -65,6 +65,19 @@ codeunit 50363 PerfionTableLoad
     var
         procureVendor: Code[20];
         procureDateChanged: Date;
+
+    local procedure getCondition(item: Record Item) itemVendor: text[20]
+    begin
+        case item."Gen. Prod. Posting Group" of
+            'COMBINE', 'ENGINE USED', 'TRACTOR':
+                itemVendor := 'USED';
+            'ENGINE REBUILT', 'REBUILT', 'RECON':
+                itemVendor := 'REMANUFACTURED';
+            'FAB', 'NEW', 'NRMACHINE', 'REBUILD':
+                itemVendor := 'NEW';
+        end;
+        exit(itemVendor);
+    end;
 
 
     local procedure getBomComponents(itemNo: Code[20]; location: code[10]): Decimal

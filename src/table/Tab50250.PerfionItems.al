@@ -55,6 +55,10 @@ table 50250 PerfionItems
             Caption = 'Vendor Cost';
             MinValue = 0;
         }
+        field(12; "Gen. Prod. Posting Group"; Code[20])
+        {
+            Caption = 'Condition';
+        }
         field(15; "Last Date Modified"; Date)
         {
             Caption = 'Last Date Modified';

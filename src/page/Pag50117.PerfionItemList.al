@@ -44,7 +44,7 @@ page 50117 PerfionItemList
                     ToolTip = 'Specifies the value of the Reference No. field.';
                 }
                 field("Replenishment System"; Rec."Replenishment System") { }
-                field("Inventory Posting Group"; Rec."Inventory Posting Group") { }
+                field("Gen. Prod. Posting Group"; Rec."Gen. Prod. Posting Group") { }
                 field(Length; Rec.Length) { }
                 field(Weight; Rec.Weight) { }
                 field("Item Class Description"; Rec."Item Class Description") { }

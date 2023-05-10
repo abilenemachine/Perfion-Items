@@ -22,7 +22,7 @@ page 50150 perfionItem
                 field(Description; Rec.Description) { }
                 field(GTIN; Rec.GTIN) { }
                 field(Blocked; Rec.Blocked) { }
-                field(InventoryPostingGroup; Rec."Inventory Posting Group") { }
+                field(Condition; Rec."Gen. Prod. Posting Group") { }
                 field(ItemCategoryCode; Rec."Item Category Code") { }
                 field(LastDateTimeModified; Rec."Last DateTime Modified") { }
                 field(DropShip; Rec."Drop Ship") { }
