@@ -189,9 +189,7 @@ codeunit 50363 PerfionTableLoad
 
         if assyLines.FindSet() then
             repeat
-                //assyLines.CalcFields("Remaining Quantity");
                 qtyOnAssy := qtyOnAssy + assyLines."Remaining Quantity";
-
             until assyLines.Next() = 0;
 
         sLines.Reset();
@@ -205,21 +203,8 @@ codeunit 50363 PerfionTableLoad
 
         if sLines.FindSet() then
             repeat
-                //sLines.CalcFields("Outstanding Quantity");
                 qtyOnSalesOrder := qtyOnSalesOrder + sLines."Outstanding Quantity";
             until sLines.Next() = 0;
-
-        /*
-                bContents.Reset();
-                bContents.SetRange("Item No.", itemNo);
-                if bContents.FindSet() then
-                    repeat
-                        if bContents."Location Code" = location then begin
-                            bContents.CalcFields("Quantity (Base)", "Pick Qty.", "ATO Components Pick Qty.", "Neg. Adjmt. Qty.", "Pos. Adjmt. Qty.", "Put-away Qty.");
-                            qtyBinContents := qtyBinContents - bContents."Pick Qty." - bContents."ATO Components Pick Qty." - bContents."Neg. Adjmt. Qty." + bContents."Pos. Adjmt. Qty." + bContents."Put-away Qty.";
-                        end;
-                    until bContents.Next() = 0;
-        */
 
         qtyFinal := qtyiLedger - (qtyOnSalesOrder + qtyOnAssy + qtyBinContents + qtyTransfer + qtyProduction);
 
@@ -227,8 +212,6 @@ codeunit 50363 PerfionTableLoad
             qtyFinal := 0;
 
         exit(qtyFinal);
-
-        //exit(iLedger.Quantity - item."Qty. on Sales Order" - wEntryBins.Quantity);
 
     end;
 
