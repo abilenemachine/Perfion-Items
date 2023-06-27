@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.26",
+  "version": "1.0.0.29",
   "brief": "",
   "description": "API Query to expose items to Perfion",
   "privacyStatement": "",
@@ -24,12 +24,6 @@
       "version": "1.0.0.41"
     },
     {
-      "id": "220cb943-310d-41c6-869c-e4fc1bd8ba3a",
-      "publisher": "Synoptek-BJ",
-      "name": "SalesOrder Factbox",
-      "version": "1.0.0.15"
-    },
-    {
       "id": "d7bbc6a6-546f-477c-8460-8eb418f111dc",
       "publisher": "Abilene",
       "name": "Abilene SOD",
@@ -39,7 +33,7 @@
       "id": "48f56295-5ad7-4acd-9171-01c47b2d386e",
       "publisher": "Synoptek-BJ",
       "name": "ExposeDescription2field",
-      "version": "1.0.0.5"
+      "version": "1.0.0.4"
     },
     {
       "id": "4016f542-d919-496e-b800-a5129bfcadce",
