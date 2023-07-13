@@ -59,14 +59,10 @@ table 50250 PerfionItems
         {
             Caption = 'Condition';
         }
-        field(15; "Last Date Modified"; Date)
+        field(15; "Vendor Cost Date"; Date)
         {
-            Caption = 'Last Date Modified';
+            Caption = 'Vendor Cost Date';
             Editable = false;
-        }
-        field(16; "Last DateTime Modified"; DateTime)
-        {
-            Caption = 'Last DateTime Modified';
         }
         /* table 5404 "Item Unit of Measure" */
         field(20; Length; Decimal)
@@ -105,9 +101,9 @@ table 50250 PerfionItems
         {
             Caption = 'Item Class Description';
         }
-        field(51; "Procurement Date Changed"; Date)
+        field(51; "Vendor Date Changed"; Date)
         {
-            Caption = 'Procurement Date Changed';
+            Caption = 'Vendor Date Changed';
         }
 
         /* table 5777 "Item Reference" */

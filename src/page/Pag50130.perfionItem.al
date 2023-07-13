@@ -24,7 +24,7 @@ page 50150 perfionItem
                 field(Blocked; Rec.Blocked) { }
                 field(Condition; Rec."Gen. Prod. Posting Group") { }
                 field(ItemCategoryCode; Rec."Item Category Code") { }
-                field(LastDateTimeModified; Rec."Last DateTime Modified") { }
+
                 field(DropShip; Rec."Drop Ship") { }
                 field(Length; Rec.Length) { }
                 field(Width; Rec.Width) { }
@@ -34,10 +34,13 @@ page 50150 perfionItem
                 field(ItemClass; Rec."Item Class Description") { }
                 field(ReplenishmentSystem; Rec."Replenishment System") { }
                 field(VendorNo; Rec."Vendor No.") { }
+                field(VendorDateChanged; Rec."Vendor Date Changed") { }
                 field(UnitCost; Rec."Unit Cost") { }
                 field(VendorCost; Rec."Vendor Cost") { }
+                field(VendorCostDate; Rec."Vendor Cost Date") { }
                 field(ReferenceNo; Rec."Reference No.") { }
-                field(ProcurementDateChanged; Rec."Procurement Date Changed") { }
+                /** Updated **/
+
                 field(QuantityKs; Rec."Quantity KS") { }
                 field(QuantitySc; Rec."Quantity SC") { }
                 field(QuantitySd; Rec."Quantity SD") { }

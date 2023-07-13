@@ -11,11 +11,13 @@ codeunit 50363 PerfionTableLoad
         items.SetRange(Type, Enum::"Item Type"::Inventory);
         items.SetRange("Add To Perfion", true);
         //items.SetFilter("No.", 'AMA135881');
-        //items.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMGLUE', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
+        //items.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMGLUE', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
 
         if items.FindSet() then
             repeat
-                //rec.Reset();
+                Clear(VendorCostDate);
+                Clear(VendorDateChange);
+
                 rec.Init();
                 rec."No." := items."No.";
                 rec.Description := items.Description;
@@ -24,7 +26,6 @@ codeunit 50363 PerfionTableLoad
                 rec."Replenishment System" := items."Replenishment System";
                 rec."Gen. Prod. Posting Group" := getCondition(items);
                 rec."Item Category Code" := items."Item Category Code";
-                rec."Last DateTime Modified" := items."Last DateTime Modified";
                 rec."Drop Ship" := items."Drop Ship";
 
                 rec.Length := getUom(items."No.", 'Length');
@@ -36,10 +37,11 @@ codeunit 50363 PerfionTableLoad
                 rec."Item Class Description" := getItemClass(items."No.");
 
                 rec."Vendor No." := getVendor(items);
-                rec."Procurement Date Changed" := procureDateChanged;
+                rec."Vendor Date Changed" := VendorDateChange;
 
                 rec."Unit Cost" := items."Unit Cost";
                 rec."Vendor Cost" := getPurchasePrice(items);
+                rec."Vendor Cost Date" := VendorCostDate;
 
                 rec."Reference No." := getItemRef(items);
 
@@ -64,7 +66,9 @@ codeunit 50363 PerfionTableLoad
 
     var
         procureVendor: Code[20];
-        procureDateChanged: Date;
+        VendorDateChange: Date;
+        VendorCostDate: Date;
+
 
     local procedure getCondition(item: Record Item) itemVendor: text[20]
     begin
@@ -215,6 +219,28 @@ codeunit 50363 PerfionTableLoad
 
     end;
 
+    local procedure getVendorDateChange(itemNo: Code[20]) dateChanged: Date
+    var
+        ChangeLog: Record "Change Log Entry";
+    begin
+        ChangeLog.Reset();
+        ChangeLog.SetRange("Table No.", 14000555);
+        ChangeLog.SetRange("Primary Key Field 1 Value", 'KS');
+        ChangeLog.SetRange("Field Log Entry Feature", Enum::"Field Log Entry Feature"::"Change Log");
+
+        if ChangeLog.FindSet() then
+            repeat
+                if ChangeLog."Primary Key Field 2 Value" = itemNo then
+                    dateChanged := DT2Date(ChangeLog."Date and Time");
+            until ChangeLog.Next() = 0;
+
+        //ChangeLog.SetRange("Primary Key Field 2 Value", itemNo);
+        //ChangeLog.SetCurrentKey("Table No.", "Date and Time");
+        //ChangeLog.SetAscending("Date and Time", false);
+        //if ChangeLog.FindFirst() then
+        //dateChanged := DT2Date(ChangeLog."Date and Time");
+    end;
+
     local procedure getItemClass(itemNo: Code[20]) itemClass: text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
@@ -242,7 +268,6 @@ codeunit 50363 PerfionTableLoad
         ItemProc: Record "LAX DP Procurement Unit";
     begin
         Clear(procureVendor);
-        Clear(procureDateChanged);
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", item."No.");
         if ItemProc.FindSet() then
@@ -250,9 +275,11 @@ codeunit 50363 PerfionTableLoad
                 case ItemProc."Replenishment Source Type" of
                     Enum::"LAX DP Replen. Source Type"::Vendor:
                         begin
+                            VendorCostDate := getPurchasePriceDate(item);
+                            //VendorDateChange := getVendorDateChange(item."No.");
+
                             itemVendor := ItemProc."Replenishment Source Code";
                             procureVendor := ItemProc."Replenishment Source Code";
-                            procureDateChanged := ItemProc."Date Changed";
                             break;
                         end;
                     Enum::"LAX DP Replen. Source Type"::Location:
@@ -260,7 +287,6 @@ codeunit 50363 PerfionTableLoad
                             if ItemProc."Location Code" = 'KS' then begin
                                 itemVendor := getLocationProcurement(item."No.", ItemProc."Replenishment Source Code");
                                 procureVendor := getLocationProcurement(item."No.", ItemProc."Replenishment Source Code");
-                                procureDateChanged := ItemProc."Date Changed";
                                 break;
                             end;
                         end;
@@ -268,7 +294,6 @@ codeunit 50363 PerfionTableLoad
                         begin
                             itemVendor := item."Vendor No.";
                             procureVendor := item."Vendor No.";
-                            procureDateChanged := ItemProc."Date Changed";
                             break;
                         end;
                 end;
@@ -276,7 +301,6 @@ codeunit 50363 PerfionTableLoad
         else begin
             itemVendor := item."Vendor No.";
             procureVendor := '';
-            procureDateChanged := item."Last Date Modified";
         end;
 
     end;
@@ -316,6 +340,24 @@ codeunit 50363 PerfionTableLoad
             end;
     end;
 
+    local procedure getPurchasePriceDate(item: Record Item) startingDate: Date
+    var
+        PriceHeader: Record "Price List Header";
+    begin
+        PriceHeader.Reset();
+        PriceHeader.SetRange(Code, procureVendor);
+        PriceHeader.SetRange("Source Type", Enum::"Price Source Type"::Vendor);
+        if PriceHeader.FindFirst() then
+            startingDate := PriceHeader."Starting Date"
+        else begin
+            PriceHeader.Reset();
+            PriceHeader.SetRange(Code, item."Vendor No.");
+            PriceHeader.SetRange("Source Type", Enum::"Price Source Type"::Vendor);
+            if PriceHeader.FindFirst() then
+                startingDate := PriceHeader."Starting Date";
+        end;
+    end;
+
     local procedure getPurchasePrice(item: Record Item) purchasePrice: Decimal
     var
         ItemPrice: Record "Price List Line";
@@ -325,8 +367,11 @@ codeunit 50363 PerfionTableLoad
         ItemPrice.SetRange("Product No.", item."No.");
         ItemPrice.SetRange("Assign-to No.", procureVendor);
         ItemPrice.SetRange("Minimum Quantity", 0);
-        if ItemPrice.FindFirst() then
-            purchasePrice := ItemPrice."Direct Unit Cost"
+        if ItemPrice.FindFirst() then begin
+            purchasePrice := ItemPrice."Direct Unit Cost";
+            VendorCostDate := ItemPrice."Starting Date";
+        end
+
         else begin
             ItemPrice.Reset();
             ItemPrice.SetRange("Asset No.", item."No.");
@@ -334,8 +379,10 @@ codeunit 50363 PerfionTableLoad
             ItemPrice.SetRange("Assign-to No.", item."Vendor No.");
             ItemPrice.SetRange("Minimum Quantity", 0);
 
-            if ItemPrice.FindFirst() then
-                purchasePrice := ItemPrice."Direct Unit Cost"
+            if ItemPrice.FindFirst() then begin
+                purchasePrice := ItemPrice."Direct Unit Cost";
+                VendorCostDate := ItemPrice."Starting Date";
+            end
             else
                 purchasePrice := item."Unit Cost";
         end;
