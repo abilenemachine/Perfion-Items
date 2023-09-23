@@ -106,6 +106,12 @@ table 50250 PerfionItems
             Caption = 'Vendor Date Changed';
         }
 
+        /* table 14000584 "LAX DP Surplus Inventory Value" */
+        field(55; "Excess Amount"; Decimal)
+        {
+            Caption = 'Excess Amount';
+        }
+
         /* table 5777 "Item Reference" */
         field(60; "Reference No."; Code[50])
         {

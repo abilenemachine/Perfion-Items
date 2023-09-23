@@ -1,5 +1,7 @@
 codeunit 50363 PerfionTableLoad
 {
+
+    // Add check for ExcessAmount in LAX DP Surplus Inventory Value (14000584)
     trigger OnRun()
     var
         items: Record Item;
@@ -42,6 +44,8 @@ codeunit 50363 PerfionTableLoad
                 rec."Unit Cost" := items."Unit Cost";
                 rec."Vendor Cost" := getPurchasePrice(items);
                 rec."Vendor Cost Date" := VendorCostDate;
+
+                rec."Excess Amount" := getExcessAmount(items."No.");
 
                 rec."Reference No." := getItemRef(items);
 
@@ -178,6 +182,25 @@ codeunit 50363 PerfionTableLoad
         wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
         if wEntryBins.CalcSums(Quantity) then
             qtyBinContents := wEntryBins.Quantity;
+
+        /*
+                        BinContent.Reset();
+                        BinContent.SetRange("Location Code", LocationCode);
+                        BinContent.SetRange("Item No.", BOMComponent."No.");
+                        BinContent.SetFilter("Bin Code", '%1|%2|%3', 'QC BIN', 'RTV BIN', 'DISPOSAL');
+                        if BinContent.FindSet()then repeat BinContent.CalcFields("Quantity (Base)");
+                                QtyUnSellableBin+=BinContent."Quantity (Base)";
+                            until BinContent.Next = 0;
+                        BinContent.Reset();
+                        BinContent.SetRange("Location Code", LocationCode);
+                        BinContent.SetRange("Item No.", BOMComponent."No.");
+                        BinContent.SetFilter("Bin Code", '<>%1&<>%2&<>%3', 'QC BIN', 'RTV BIN', 'DISPOSAL');
+                        BinContent.SetRange(Dedicated, true);
+                        if BinContent.FindSet()then repeat BinContent.CalcFields("Quantity (Base)");
+                                QtyUnSellableBin+=BinContent."Quantity (Base)";
+                            until BinContent.Next = 0;
+
+        */
 
         iLedger.Reset();
         iLedger.SetRange("Item No.", itemNo);
@@ -316,6 +339,19 @@ codeunit 50363 PerfionTableLoad
             vendor := ItemProc."Replenishment Source Code"
         else
             vendor := '';
+    end;
+
+    local procedure getExcessAmount(itemNo: Code[20]) amount: Decimal
+    var
+        ItemSurplus: Record "LAX DP Surplus Inventory Value";
+    begin
+        ItemSurplus.Reset();
+        ItemSurplus.SetRange("Item No.", itemNo);
+        ItemSurplus.SetRange("Location Code", 'KS');
+        if ItemSurplus.FindFirst() then
+            amount := ItemSurplus."Excess Amount"
+        else
+            amount := 0;
     end;
 
     local procedure getUom(itemNo: Code[20]; type: text[10]) rValue: Decimal

@@ -46,6 +46,8 @@ page 50150 perfionItem
                 field(QuantitySd; Rec."Quantity SD") { }
                 field(QuantityMt; Rec."Quantity MT") { }
 
+                field(ExcessAmount; Rec."Excess Amount") { }
+
             }
         }
     }

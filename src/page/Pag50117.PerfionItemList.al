@@ -41,7 +41,11 @@ page 50117 PerfionItemList
                 }
                 field("Vendor Cost"; Rec."Vendor Cost")
                 {
-                    ToolTip = 'Specifies the value of the Unit Cost field.';
+                    ToolTip = 'Specifies the value of the Vendor Cost field.';
+                }
+                field("Excess Amount"; Rec."Excess Amount")
+                {
+                    ToolTip = 'Specifies the value of the Excess Amount field.';
                 }
                 field("Vendor Cost Date"; Rec."Vendor Cost Date")
                 {
