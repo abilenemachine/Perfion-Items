@@ -179,7 +179,18 @@ codeunit 50363 PerfionTableLoad
         wEntryBins.Reset();
         wEntryBins.SetRange("Item No.", itemNo);
         wEntryBins.SetRange("Location Code", location);
-        wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
+        //wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
+        //Filter for dedicated bins AND Bin Code SHIP
+        wEntryBins.SetFilter("Bin Code", '%1', 'SHIP');
+        if wEntryBins.CalcSums(Quantity) then
+            qtyBinContents := wEntryBins.Quantity;
+
+        wEntryBins.Reset();
+        wEntryBins.SetRange("Item No.", itemNo);
+        wEntryBins.SetRange("Location Code", location);
+        //wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
+        //Filter for dedicated bins AND Bin Code SHIP
+        wEntryBins.SetFilter(Dedicated, 'True');
         if wEntryBins.CalcSums(Quantity) then
             qtyBinContents := wEntryBins.Quantity;
 
