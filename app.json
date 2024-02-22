@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.34",
+  "version": "1.0.0.35",
   "brief": "",
   "description": "API Query to expose items to Perfion",
   "privacyStatement": "",
@@ -15,7 +15,7 @@
       "id": "a8c19647-b664-4902-a66a-c9f19da9121e",
       "publisher": "Lanham Associates",
       "name": "Lanham Demand Planning",
-      "version": "21.3.5.3"
+      "version": "23.3.5.10"
     },
     {
       "id": "13dd0d55-3340-471c-8cfe-8880a5147313",
@@ -39,7 +39,7 @@
       "id": "4016f542-d919-496e-b800-a5129bfcadce",
       "publisher": "SSI",
       "name": "Sales orderLine–AssemblyItems",
-      "version": "1.0.0.18"
+      "version": "1.0.0.31"
     }
   ],
   "screenshots": [],

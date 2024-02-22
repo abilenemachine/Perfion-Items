@@ -79,9 +79,9 @@ codeunit 50363 PerfionTableLoad
         case item."Gen. Prod. Posting Group" of
             'COMBINE', 'ENGINE USED', 'TRACTOR':
                 itemVendor := 'USED';
-            'ENGINE REBUILT', 'REBUILT', 'RECON':
+            'ENGINE REBUILT', 'REBUILT', 'RECON', 'REBUILD':
                 itemVendor := 'REMANUFACTURED';
-            'FAB', 'NEW', 'NRMACHINE', 'REBUILD':
+            'FAB', 'NEW', 'NRMACHINE':
                 itemVendor := 'NEW';
         end;
         exit(itemVendor);
