@@ -35,6 +35,8 @@ codeunit 50363 PerfionTableLoad
                 rec.Height := getUom(items."No.", 'Height');
                 rec.Weight := getUom(items."No.", 'Weight');
                 rec.Cubage := getUom(items."No.", 'Cubage');
+                rec.NMFC := items."IWX LTL NMFC";
+                rec."Freight Density" := items."IWX LTL Freight Density";
 
                 rec."Item Class Description" := getItemClass(items."No.");
 
@@ -48,6 +50,8 @@ codeunit 50363 PerfionTableLoad
                 rec."Excess Amount" := getExcessAmount(items."No.");
 
                 rec."Reference No." := getItemRef(items);
+
+                rec.Demand := EH.GetUsageLast12Months(items."No.");
 
                 items.CalcFields("Assembly BOM");
 
@@ -72,6 +76,7 @@ codeunit 50363 PerfionTableLoad
         procureVendor: Code[20];
         VendorDateChange: Date;
         VendorCostDate: Date;
+        minQty: Decimal;
 
 
     local procedure getCondition(item: Record Item) itemVendor: text[20]
@@ -417,22 +422,51 @@ codeunit 50363 PerfionTableLoad
         if ItemPrice.FindFirst() then begin
             purchasePrice := ItemPrice."Direct Unit Cost";
             VendorCostDate := ItemPrice."Starting Date";
+            minQty := ItemPrice."Minimum Quantity";
         end
 
         else begin
             ItemPrice.Reset();
             ItemPrice.SetRange("Asset No.", item."No.");
             ItemPrice.SetRange("Product No.", item."No.");
-            ItemPrice.SetRange("Assign-to No.", item."Vendor No.");
-            ItemPrice.SetRange("Minimum Quantity", 0);
-
+            ItemPrice.SetRange("Assign-to No.", procureVendor);
             if ItemPrice.FindFirst() then begin
                 purchasePrice := ItemPrice."Direct Unit Cost";
                 VendorCostDate := ItemPrice."Starting Date";
+                minQty := ItemPrice."Minimum Quantity";
             end
-            else
-                purchasePrice := item."Unit Cost";
-        end;
+
+            else begin
+                ItemPrice.Reset();
+                ItemPrice.SetRange("Asset No.", item."No.");
+                ItemPrice.SetRange("Product No.", item."No.");
+                ItemPrice.SetRange("Assign-to No.", item."Vendor No.");
+                ItemPrice.SetRange("Minimum Quantity", 0);
+
+                if ItemPrice.FindFirst() then begin
+                    purchasePrice := ItemPrice."Direct Unit Cost";
+                    VendorCostDate := ItemPrice."Starting Date";
+                    minQty := ItemPrice."Minimum Quantity";
+                end
+                else begin
+                    ItemPrice.Reset();
+                    ItemPrice.SetRange("Asset No.", item."No.");
+                    ItemPrice.SetRange("Product No.", item."No.");
+                    ItemPrice.SetRange("Assign-to No.", item."Vendor No.");
+
+                    if ItemPrice.FindFirst() then begin
+                        purchasePrice := ItemPrice."Direct Unit Cost";
+                        VendorCostDate := ItemPrice."Starting Date";
+                        minQty := ItemPrice."Minimum Quantity";
+                    end
+                    else
+                        purchasePrice := item."Unit Cost";
+                    minQty := 0
+                end
+            end
+        end
+
+
     end;
 
     local procedure getItemRef(item: Record Item) itemReference: Code[50]
@@ -457,6 +491,9 @@ codeunit 50363 PerfionTableLoad
 
 
     end;
+
+    var
+        EH: Codeunit SSIExensionHook;
 
 
 }

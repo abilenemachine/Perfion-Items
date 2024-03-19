@@ -48,6 +48,13 @@ page 50150 perfionItem
 
                 field(ExcessAmount; Rec."Excess Amount") { }
 
+                field(Demand; Rec.Demand) { }
+
+                field(NMFC; Rec.NMFC) { }
+                field("FreightDensity"; Rec."Freight Density") { }
+
+                field("MinQty"; Rec."Minimum Qty") { }
+
             }
         }
     }

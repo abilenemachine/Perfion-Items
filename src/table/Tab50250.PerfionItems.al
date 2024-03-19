@@ -64,6 +64,21 @@ table 50250 PerfionItems
             Caption = 'Vendor Cost Date';
             Editable = false;
         }
+        field(16; NMFC; Code[30])
+        {
+            Caption = 'NMFC';
+            Editable = false;
+        }
+        field(17; "Freight Density"; Code[10])
+        {
+            Caption = 'Freight Density';
+            Editable = false;
+        }
+        field(18; "Minimum Qty"; Decimal)
+        {
+            Caption = 'Minimum Qty';
+            Editable = false;
+        }
         /* table 5404 "Item Unit of Measure" */
         field(20; Length; Decimal)
         {
@@ -102,6 +117,10 @@ table 50250 PerfionItems
             Caption = 'Item Class Description';
         }
         field(51; "Vendor Date Changed"; Date)
+        {
+            Caption = 'Vendor Date Changed';
+        }
+        field(52; Demand; Decimal)
         {
             Caption = 'Vendor Date Changed';
         }

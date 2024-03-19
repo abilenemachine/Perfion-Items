@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.35",
+  "version": "1.0.0.38",
   "brief": "",
   "description": "API Query to expose items to Perfion",
   "privacyStatement": "",
@@ -40,6 +40,18 @@
       "publisher": "SSI",
       "name": "Sales orderLine–AssemblyItems",
       "version": "1.0.0.31"
+    },
+    {
+      "id": "c38e7687-5ff2-4ac4-8c66-4b384e0d80e4",
+      "name": "Abilene Modifications",
+      "version": "1.0.0.3",
+      "publisher": "SSI"
+    },
+    {
+      "id": "89be90e6-7d47-4087-9c8a-7b379b86aa15",
+      "publisher": "Insight Works",
+      "name": "Dynamic Ship LTL Common",
+      "version": "2.7.1.0"
     }
   ],
   "screenshots": [],
