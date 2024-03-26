@@ -17,7 +17,6 @@ codeunit 50363 PerfionTableLoad
 
         if items.FindSet() then
             repeat
-                Clear(VendorCostDate);
                 Clear(VendorDateChange);
 
                 rec.Init();
@@ -45,7 +44,6 @@ codeunit 50363 PerfionTableLoad
 
                 rec."Unit Cost" := items."Unit Cost";
                 rec."Vendor Cost" := getPurchasePrice(items);
-                rec."Vendor Cost Date" := VendorCostDate;
 
                 rec."Excess Amount" := getExcessAmount(items."No.");
 
@@ -75,7 +73,6 @@ codeunit 50363 PerfionTableLoad
     var
         procureVendor: Code[20];
         VendorDateChange: Date;
-        VendorCostDate: Date;
         minQty: Decimal;
 
 
@@ -314,9 +311,6 @@ codeunit 50363 PerfionTableLoad
                 case ItemProc."Replenishment Source Type" of
                     Enum::"LAX DP Replen. Source Type"::Vendor:
                         begin
-                            VendorCostDate := getPurchasePriceDate(item);
-                            //VendorDateChange := getVendorDateChange(item."No.");
-
                             itemVendor := ItemProc."Replenishment Source Code";
                             procureVendor := ItemProc."Replenishment Source Code";
                             break;
@@ -421,7 +415,6 @@ codeunit 50363 PerfionTableLoad
         ItemPrice.SetRange("Minimum Quantity", 0);
         if ItemPrice.FindFirst() then begin
             purchasePrice := ItemPrice."Direct Unit Cost";
-            VendorCostDate := ItemPrice."Starting Date";
             minQty := ItemPrice."Minimum Quantity";
         end
 
@@ -432,7 +425,6 @@ codeunit 50363 PerfionTableLoad
             ItemPrice.SetRange("Assign-to No.", procureVendor);
             if ItemPrice.FindFirst() then begin
                 purchasePrice := ItemPrice."Direct Unit Cost";
-                VendorCostDate := ItemPrice."Starting Date";
                 minQty := ItemPrice."Minimum Quantity";
             end
 
@@ -445,7 +437,6 @@ codeunit 50363 PerfionTableLoad
 
                 if ItemPrice.FindFirst() then begin
                     purchasePrice := ItemPrice."Direct Unit Cost";
-                    VendorCostDate := ItemPrice."Starting Date";
                     minQty := ItemPrice."Minimum Quantity";
                 end
                 else begin
@@ -456,7 +447,6 @@ codeunit 50363 PerfionTableLoad
 
                     if ItemPrice.FindFirst() then begin
                         purchasePrice := ItemPrice."Direct Unit Cost";
-                        VendorCostDate := ItemPrice."Starting Date";
                         minQty := ItemPrice."Minimum Quantity";
                     end
                     else

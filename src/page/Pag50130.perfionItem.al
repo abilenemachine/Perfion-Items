@@ -37,7 +37,6 @@ page 50150 perfionItem
                 field(VendorDateChanged; Rec."Vendor Date Changed") { }
                 field(UnitCost; Rec."Unit Cost") { }
                 field(VendorCost; Rec."Vendor Cost") { }
-                field(VendorCostDate; Rec."Vendor Cost Date") { }
                 field(ReferenceNo; Rec."Reference No.") { }
                 /** Updated **/
 

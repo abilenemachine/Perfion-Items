@@ -59,11 +59,16 @@ table 50250 PerfionItems
         {
             Caption = 'Condition';
         }
+        /* Removed per Lovisa 3/25/24
+
+        Lovisa - that would be fine then if you want to proceed with removing the "VendorCostDate" column from your side.  
+
         field(15; "Vendor Cost Date"; Date)
         {
             Caption = 'Vendor Cost Date';
             Editable = false;
         }
+        */
         field(16; NMFC; Code[30])
         {
             Caption = 'NMFC';

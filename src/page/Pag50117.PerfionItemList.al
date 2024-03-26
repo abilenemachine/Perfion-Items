@@ -47,10 +47,6 @@ page 50117 PerfionItemList
                 {
                     ToolTip = 'Specifies the value of the Excess Amount field.';
                 }
-                field("Vendor Cost Date"; Rec."Vendor Cost Date")
-                {
-                    ToolTip = 'Specifies the starting date of the purchase price for vendor';
-                }
                 field("Reference No."; Rec."Reference No.")
                 {
                     ToolTip = 'Specifies the value of the Reference No. field.';
