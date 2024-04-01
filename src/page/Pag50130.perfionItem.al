@@ -53,6 +53,7 @@ page 50150 perfionItem
                 field("FreightDensity"; Rec."Freight Density") { }
 
                 field("MinQty"; Rec."Minimum Qty") { }
+                field(Oversize; Rec.Oversize) { }
 
             }
         }

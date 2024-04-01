@@ -59,6 +59,11 @@ table 50250 PerfionItems
         {
             Caption = 'Condition';
         }
+        field(13; Oversize; Decimal)
+        {
+            Caption = 'Oversize';
+            DecimalPlaces = 0 : 5;
+        }
         /* Removed per Lovisa 3/25/24
 
         Lovisa - that would be fine then if you want to proceed with removing the "VendorCostDate" column from your side.  

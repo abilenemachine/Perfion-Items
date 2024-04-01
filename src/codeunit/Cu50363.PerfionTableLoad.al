@@ -36,6 +36,7 @@ codeunit 50363 PerfionTableLoad
                 rec.Cubage := getUom(items."No.", 'Cubage');
                 rec.NMFC := items."IWX LTL NMFC";
                 rec."Freight Density" := items."IWX LTL Freight Density";
+                rec.Oversize := getOversize(items);
 
                 rec."Item Class Description" := getItemClass(items."No.");
 
@@ -44,6 +45,7 @@ codeunit 50363 PerfionTableLoad
 
                 rec."Unit Cost" := items."Unit Cost";
                 rec."Vendor Cost" := getPurchasePrice(items);
+                rec."Minimum Qty" := minQty;
 
                 rec."Excess Amount" := getExcessAmount(items."No.");
 
@@ -75,6 +77,13 @@ codeunit 50363 PerfionTableLoad
         VendorDateChange: Date;
         minQty: Decimal;
 
+    local procedure getOversize(item: Record Item) booleanText: Decimal
+    begin
+        if item.Oversize then
+            exit(1)
+        else
+            exit(0)
+    end;
 
     local procedure getCondition(item: Record Item) itemVendor: text[20]
     begin
@@ -408,6 +417,7 @@ codeunit 50363 PerfionTableLoad
     var
         ItemPrice: Record "Price List Line";
     begin
+        Clear(minQty);
         ItemPrice.Reset();
         ItemPrice.SetRange("Asset No.", item."No.");
         ItemPrice.SetRange("Product No.", item."No.");

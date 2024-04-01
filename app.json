@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.39",
+  "version": "1.0.0.41",
   "brief": "",
   "description": "API Query to expose items to Perfion",
   "privacyStatement": "",
@@ -52,6 +52,12 @@
       "publisher": "Insight Works",
       "name": "Dynamic Ship LTL Common",
       "version": "2.7.1.0"
+    },
+    {
+      "id": "0d3ace7e-c245-4364-a3dd-52a0cfbae19b",
+      "publisher": "Abilene",
+      "name": "Table Extensions",
+      "version": "1.0.0.3"
     }
   ],
   "screenshots": [],
