@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.41",
+  "version": "1.0.0.42",
   "brief": "",
   "description": "API Query to expose items to Perfion",
   "privacyStatement": "",
@@ -58,6 +58,12 @@
       "publisher": "Abilene",
       "name": "Table Extensions",
       "version": "1.0.0.3"
+    },
+    {
+      "id": "c43dcc1b-fb35-45ee-b4d8-d81285435184",
+      "name": "Core Item Modification",
+      "version": "1.0.0.1",
+      "publisher": "SSI"
     }
   ],
   "screenshots": [],

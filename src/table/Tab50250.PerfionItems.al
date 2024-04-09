@@ -74,6 +74,15 @@ table 50250 PerfionItems
             Editable = false;
         }
         */
+        field(14; "Core Resource Name"; Code[20])
+        {
+            Caption = 'Core Resource Name';
+        }
+        field(15; "Core Sales Value"; Decimal)
+        {
+            Caption = 'Core Sales Value';
+            DecimalPlaces = 0 : 5;
+        }
         field(16; NMFC; Code[30])
         {
             Caption = 'NMFC';

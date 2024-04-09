@@ -55,6 +55,10 @@ page 50150 perfionItem
                 field("MinQty"; Rec."Minimum Qty") { }
                 field(Oversize; Rec.Oversize) { }
 
+                field("CoreResourceName"; Rec."Core Resource Name") { }
+                field("CoreSalesValue"; Rec."Core Sales Value") { }
+
+
             }
         }
     }

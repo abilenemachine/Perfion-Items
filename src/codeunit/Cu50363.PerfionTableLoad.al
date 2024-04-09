@@ -53,6 +53,9 @@ codeunit 50363 PerfionTableLoad
 
                 rec.Demand := EH.GetUsageLast12Months(items."No.");
 
+                rec."Core Resource Name" := items."Core Resource Name";
+                rec."Core Sales Value" := items."Core Sales Value";
+
                 items.CalcFields("Assembly BOM");
 
                 if items."Assembly BOM" then begin
