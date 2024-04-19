@@ -148,7 +148,6 @@ codeunit 50363 PerfionTableLoad
     local procedure getQty(itemNo: Code[20]; location: code[10]): Decimal
     var
         wEntryBins: Record "Warehouse Entry";
-        bContents: Record "Bin Content";
         sLines: Record "Sales Line";
         assyLines: Record "Assembly Line";
         iLedger: Record "Item Ledger Entry";
@@ -197,7 +196,7 @@ codeunit 50363 PerfionTableLoad
         //Filter for dedicated bins AND Bin Code SHIP
         wEntryBins.SetFilter("Bin Code", '%1', 'SHIP');
         if wEntryBins.CalcSums(Quantity) then
-            qtyBinContents := wEntryBins.Quantity;
+            qtyBinContents += wEntryBins.Quantity;
 
         wEntryBins.Reset();
         wEntryBins.SetRange("Item No.", itemNo);
@@ -206,7 +205,7 @@ codeunit 50363 PerfionTableLoad
         //Filter for dedicated bins AND Bin Code SHIP
         wEntryBins.SetFilter(Dedicated, 'True');
         if wEntryBins.CalcSums(Quantity) then
-            qtyBinContents := wEntryBins.Quantity;
+            qtyBinContents += wEntryBins.Quantity;
 
         /*
                         BinContent.Reset();
@@ -439,6 +438,7 @@ codeunit 50363 PerfionTableLoad
             if ItemPrice.FindFirst() then begin
                 purchasePrice := ItemPrice."Direct Unit Cost";
                 minQty := ItemPrice."Minimum Quantity";
+                // Add core once added
             end
 
             else begin
