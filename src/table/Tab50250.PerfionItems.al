@@ -64,6 +64,11 @@ table 50250 PerfionItems
             Caption = 'Oversize';
             DecimalPlaces = 0 : 5;
         }
+        field(14; "Vendor Core"; Decimal)
+        {
+            Caption = 'Vendor Core';
+            Editable = false;
+        }
         /* Removed per Lovisa 3/25/24
 
         Lovisa - that would be fine then if you want to proceed with removing the "VendorCostDate" column from your side.  
@@ -74,6 +79,8 @@ table 50250 PerfionItems
             Editable = false;
         }
         */
+
+        /* Removed per Lovisa 5/5/24
         field(14; "Core Resource Name"; Code[20])
         {
             Caption = 'Core Resource Name';
@@ -83,6 +90,7 @@ table 50250 PerfionItems
             Caption = 'Core Sales Value';
             DecimalPlaces = 0 : 5;
         }
+        */
         field(16; NMFC; Code[30])
         {
             Caption = 'NMFC';

@@ -1,12 +1,15 @@
-codeunit 50363 PerfionTableLoad
+codeunit 50363 PerfionDataSync
 {
-
-    // Add check for ExcessAmount in LAX DP Surplus Inventory Value (14000584)
     trigger OnRun()
     var
         items: Record Item;
         rec: Record PerfionItems;
+        Values: List of [Decimal];
+        perfionDataSync: Record PerfionDataSync;
+        changeCount: Integer;
+
     begin
+        perfionDataSync.LastSync := CreateDateTime(Today, Time);
         rec.Reset();
         rec.DeleteAll;
 
@@ -44,7 +47,11 @@ codeunit 50363 PerfionTableLoad
                 rec."Vendor Date Changed" := VendorDateChange;
 
                 rec."Unit Cost" := items."Unit Cost";
-                rec."Vendor Cost" := getPurchasePrice(items);
+
+                Values := getPurchasePrice(items);
+                rec."Vendor Cost" := Values.Get(1);
+                rec."Vendor Core" := Values.Get(2);
+
                 rec."Minimum Qty" := minQty;
 
                 rec."Excess Amount" := getExcessAmount(items."No.");
@@ -52,9 +59,6 @@ codeunit 50363 PerfionTableLoad
                 rec."Reference No." := getItemRef(items);
 
                 rec.Demand := EH.GetUsageLast12Months(items."No.");
-
-                rec."Core Resource Name" := items."Core Resource Name";
-                rec."Core Sales Value" := items."Core Sales Value";
 
                 items.CalcFields("Assembly BOM");
 
@@ -72,7 +76,12 @@ codeunit 50363 PerfionTableLoad
                 end;
 
                 rec.Insert();
-            until items.Next() = 0
+                logHandler.LogItemUpdate(rec."No.", items."Last DateTime Modified");
+                changeCount += 1;
+            until items.Next() = 0;
+
+        perfionDataSync.Processed := changeCount;
+        perfionDataSync.Modify();
     end;
 
     var
@@ -145,93 +154,115 @@ codeunit 50363 PerfionTableLoad
 
     end;
 
-    local procedure getQty(itemNo: Code[20]; location: code[10]): Decimal
+    procedure getQty(itemNo: Code[20]; location: code[10]): Decimal
     var
-        wEntryBins: Record "Warehouse Entry";
-        sLines: Record "Sales Line";
-        assyLines: Record "Assembly Line";
-        iLedger: Record "Item Ledger Entry";
         item: Record Item;
-        tLines: Record "Transfer Line";
-        pOrdCompLines: Record "Prod. Order Component";
 
         qtyOnSalesOrder: Decimal;
         qtyOnAssy: Decimal;
         qtyiLedger: Decimal;
-        qtyBinContents: Decimal;
+        qtyUnsellableBin: Decimal;
         qtyFinal: Decimal;
         qtyProduction: Decimal;
         qtyTransfer: Decimal;
 
     begin
         qtyOnSalesOrder := 0;
-        qtyBinContents := 0;
+        qtyUnsellableBin := 0;
         qtyOnAssy := 0;
         qtyiLedger := 0;
         qtyFinal := 0;
         qtyProduction := 0;
         qtyTransfer := 0;
 
+        qtyTransfer := getTransferQty(itemNo, location);
+        qtyProduction := getProductionQty(itemNo, location);
+        qtyUnsellableBin := getUnsellableQty(itemNo, location);
+        qtyiLedger := getLedgerQty(itemNo, location);
+        qtyOnAssy := getAssemblyQty(itemNo, location);
+        qtyOnSalesOrder := getSalesLineQty(itemNo, location);
+
+        qtyFinal := qtyiLedger - (qtyOnSalesOrder + qtyOnAssy + qtyUnsellableBin + qtyTransfer + qtyProduction);
+
+        if qtyFinal < 0 then
+            qtyFinal := 0;
+
+        exit(qtyFinal);
+    end;
+
+    procedure getTransferQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        tLines: Record "Transfer Line";
+    begin
         tLines.Reset();
         tLines.SetRange("Item No.", itemNo);
         tLines.SetRange("Transfer-from Code", location);
         tLines.SetFilter("Outstanding Qty. (Base)", '<>0');
         tLines.SetRange("Shipment Date", 0D, Today);
         if tLines.CalcSums("Outstanding Quantity") then
-            qtyTransfer := tLines."Outstanding Quantity";
+            value := tLines."Outstanding Quantity";
+    end;
 
-        pOrdCompLines.Reset();
-        pOrdCompLines.SetRange("Item No.", itemNo);
-        pOrdCompLines.SetRange("Location Code", location);
-        pOrdCompLines.SetFilter(Status, '%1|%2', Enum::"Production Order Status"::Planned, Enum::"Production Order Status"::Released);
-        pOrdCompLines.SetFilter("Remaining Qty. (Base)", '<>0');
-        pOrdCompLines.SetRange("Due Date", 0D, Today);
-        if pOrdCompLines.CalcSums("Remaining Quantity") then
-            qtyProduction := pOrdCompLines."Remaining Quantity";
+    procedure getProductionQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        prodCompLines: Record "Prod. Order Component";
+    begin
+        prodCompLines.Reset();
+        prodCompLines.SetRange("Item No.", itemNo);
+        prodCompLines.SetRange("Location Code", location);
+        prodCompLines.SetFilter(Status, '%1|%2', Enum::"Production Order Status"::"Firm Planned", Enum::"Production Order Status"::Released);
+        prodCompLines.SetFilter("Remaining Qty. (Base)", '<>0');
+        prodCompLines.SetRange("Due Date", 0D, Today);
+        if prodCompLines.CalcSums("Remaining Quantity") then
+            value := prodCompLines."Remaining Quantity";
+    end;
+
+    procedure getUnsellableQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        wEntryBins: Record "Warehouse Entry";
+        UnsellableBin: Record "Unsellable Bins";
+        UnsellabelFilter1: Text;
+        UnsellableFilter2: Text;
+    begin
+        if UnsellableBin.FindSet() then
+            repeat
+                UnsellabelFilter1 += UnsellableBin."Bin Code" + '|';
+                UnsellableFilter2 += '<>' + UnsellableBin."Bin Code" + '&';
+            until UnsellableBin.Next() = 0;
+        UnsellabelFilter1 := UnsellabelFilter1.TrimEnd('|');
+        UnsellableFilter2 := UnsellableFilter2.TrimEnd('&');
 
         wEntryBins.Reset();
         wEntryBins.SetRange("Item No.", itemNo);
         wEntryBins.SetRange("Location Code", location);
-        //wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
-        //Filter for dedicated bins AND Bin Code SHIP
-        wEntryBins.SetFilter("Bin Code", '%1', 'SHIP');
+        wEntryBins.SetFilter("Bin Code", UnsellabelFilter1);
         if wEntryBins.CalcSums(Quantity) then
-            qtyBinContents += wEntryBins.Quantity;
+            value += wEntryBins.Quantity;
 
         wEntryBins.Reset();
         wEntryBins.SetRange("Item No.", itemNo);
         wEntryBins.SetRange("Location Code", location);
-        //wEntryBins.SetFilter("Bin Code", '%1|%2|%3|%4|%5', 'QC', 'QA', 'RTV', 'RTV BIN', 'DISPOSAL');
-        //Filter for dedicated bins AND Bin Code SHIP
+        wEntryBins.SetFilter("Bin Code", UnsellableFilter2);
         wEntryBins.SetFilter(Dedicated, 'True');
         if wEntryBins.CalcSums(Quantity) then
-            qtyBinContents += wEntryBins.Quantity;
+            value += wEntryBins.Quantity;
+    end;
 
-        /*
-                        BinContent.Reset();
-                        BinContent.SetRange("Location Code", LocationCode);
-                        BinContent.SetRange("Item No.", BOMComponent."No.");
-                        BinContent.SetFilter("Bin Code", '%1|%2|%3', 'QC BIN', 'RTV BIN', 'DISPOSAL');
-                        if BinContent.FindSet()then repeat BinContent.CalcFields("Quantity (Base)");
-                                QtyUnSellableBin+=BinContent."Quantity (Base)";
-                            until BinContent.Next = 0;
-                        BinContent.Reset();
-                        BinContent.SetRange("Location Code", LocationCode);
-                        BinContent.SetRange("Item No.", BOMComponent."No.");
-                        BinContent.SetFilter("Bin Code", '<>%1&<>%2&<>%3', 'QC BIN', 'RTV BIN', 'DISPOSAL');
-                        BinContent.SetRange(Dedicated, true);
-                        if BinContent.FindSet()then repeat BinContent.CalcFields("Quantity (Base)");
-                                QtyUnSellableBin+=BinContent."Quantity (Base)";
-                            until BinContent.Next = 0;
-
-        */
-
+    procedure getLedgerQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        iLedger: Record "Item Ledger Entry";
+    begin
         iLedger.Reset();
         iLedger.SetRange("Item No.", itemNo);
         iLedger.SetRange("Location Code", location);
         if iLedger.CalcSums(Quantity) then
-            qtyiLedger := iLedger.Quantity;
+            value := iLedger.Quantity;
+    end;
 
+    procedure getAssemblyQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        assyLines: Record "Assembly Line";
+    begin
         assyLines.Reset();
         assyLines.SetRange("Document Type", Enum::"Assembly Document Type"::Order);
         assyLines.SetRange(Type, Enum::"BOM Component Type"::Item);
@@ -240,9 +271,14 @@ codeunit 50363 PerfionTableLoad
 
         if assyLines.FindSet() then
             repeat
-                qtyOnAssy := qtyOnAssy + assyLines."Remaining Quantity";
+                value += assyLines."Remaining Quantity";
             until assyLines.Next() = 0;
+    end;
 
+    procedure getSalesLineQty(itemNo: Code[20]; location: code[10]) value: Decimal
+    var
+        sLines: Record "Sales Line";
+    begin
         sLines.Reset();
         sLines.SetRange("Document Type", Enum::"Sales Document Type"::Order);
         sLines.SetRange("Drop Shipment", false);
@@ -254,16 +290,8 @@ codeunit 50363 PerfionTableLoad
 
         if sLines.FindSet() then
             repeat
-                qtyOnSalesOrder := qtyOnSalesOrder + sLines."Outstanding Quantity";
+                value += sLines."Outstanding Quantity";
             until sLines.Next() = 0;
-
-        qtyFinal := qtyiLedger - (qtyOnSalesOrder + qtyOnAssy + qtyBinContents + qtyTransfer + qtyProduction);
-
-        if qtyFinal < 0 then
-            qtyFinal := 0;
-
-        exit(qtyFinal);
-
     end;
 
     local procedure getVendorDateChange(itemNo: Code[20]) dateChanged: Date
@@ -415,7 +443,7 @@ codeunit 50363 PerfionTableLoad
         end;
     end;
 
-    local procedure getPurchasePrice(item: Record Item) purchasePrice: Decimal
+    local procedure getPurchasePrice(item: Record Item) Values: List of [Decimal]
     var
         ItemPrice: Record "Price List Line";
     begin
@@ -426,7 +454,8 @@ codeunit 50363 PerfionTableLoad
         ItemPrice.SetRange("Assign-to No.", procureVendor);
         ItemPrice.SetRange("Minimum Quantity", 0);
         if ItemPrice.FindFirst() then begin
-            purchasePrice := ItemPrice."Direct Unit Cost";
+            Values.Add(ItemPrice."Direct Unit Cost");
+            Values.Add(ItemPrice.CoreChargePriceList);
             minQty := ItemPrice."Minimum Quantity";
         end
 
@@ -436,9 +465,9 @@ codeunit 50363 PerfionTableLoad
             ItemPrice.SetRange("Product No.", item."No.");
             ItemPrice.SetRange("Assign-to No.", procureVendor);
             if ItemPrice.FindFirst() then begin
-                purchasePrice := ItemPrice."Direct Unit Cost";
+                Values.Add(ItemPrice."Direct Unit Cost");
+                Values.Add(ItemPrice.CoreChargePriceList);
                 minQty := ItemPrice."Minimum Quantity";
-                // Add core once added
             end
 
             else begin
@@ -449,7 +478,8 @@ codeunit 50363 PerfionTableLoad
                 ItemPrice.SetRange("Minimum Quantity", 0);
 
                 if ItemPrice.FindFirst() then begin
-                    purchasePrice := ItemPrice."Direct Unit Cost";
+                    Values.Add(ItemPrice."Direct Unit Cost");
+                    Values.Add(ItemPrice.CoreChargePriceList);
                     minQty := ItemPrice."Minimum Quantity";
                 end
                 else begin
@@ -459,11 +489,13 @@ codeunit 50363 PerfionTableLoad
                     ItemPrice.SetRange("Assign-to No.", item."Vendor No.");
 
                     if ItemPrice.FindFirst() then begin
-                        purchasePrice := ItemPrice."Direct Unit Cost";
+                        Values.Add(ItemPrice."Direct Unit Cost");
+                        Values.Add(ItemPrice.CoreChargePriceList);
                         minQty := ItemPrice."Minimum Quantity";
                     end
                     else
-                        purchasePrice := item."Unit Cost";
+                        Values.Add(item."Unit Cost");
+                    Values.Add(0);
                     minQty := 0
                 end
             end
@@ -497,6 +529,7 @@ codeunit 50363 PerfionTableLoad
 
     var
         EH: Codeunit SSIExensionHook;
+        logHandler: Codeunit PerfionDataLogHandler;
 
 
 }

@@ -12,6 +12,12 @@
   "logo": "src/img/am-logo-square.png",
   "dependencies": [
     {
+      "id": "d0a4cf1f-3e3a-45e5-a172-914799c11587",
+      "publisher": "Abilene Z",
+      "name": "Purchase Price Upload",
+      "version": "1.0.0.6"
+    },
+    {
       "id": "a8c19647-b664-4902-a66a-c9f19da9121e",
       "publisher": "Lanham Associates",
       "name": "Lanham Demand Planning",
@@ -80,7 +86,7 @@
     "allowDownloadingSource": true,
     "includeSourceInSymbolFile": true
   },
-  "runtime": "10.0",
+  "runtime": "12.0",
   "features": [
     "NoImplicitWith"
   ]
