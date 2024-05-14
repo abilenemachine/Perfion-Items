@@ -15,6 +15,10 @@ table 50251 PerfionConfig
         {
             ExtendedDatatype = Masked;
         }
+        field(5; "Manual Date"; Date)
+        {
+
+        }
         field(4; "Enabled"; Boolean)
         {
         }

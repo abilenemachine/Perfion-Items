@@ -1,27 +1,26 @@
-page 50156 PerfionErrorLog
+page 50159 MagentoLog
 {
     PageType = List;
     ApplicationArea = All;
     UsageCategory = Administration;
-    SourceTable = PerfionErrorLog;
-    SourceTableView = order(descending);
-    AdditionalSearchTerms = 'Warehouse, Magento Warehouse';
+    SourceTable = MagentoLog;
 
     layout
     {
         area(Content)
         {
-            repeater("Errors")
+            repeater(Errors)
             {
                 field("Date/Time"; Rec."Date/Time")
                 {
                     ApplicationArea = All;
                 }
-                field("Item No."; Rec."Item No.")
+                field("Processing Stage"; Rec.Process)
                 {
                     ApplicationArea = All;
                 }
-                field(Process; Rec.Process)
+
+                field("Key"; Rec."Key")
                 {
                     ApplicationArea = All;
                 }
@@ -29,6 +28,11 @@ page 50156 PerfionErrorLog
                 {
                     ApplicationArea = All;
                 }
+                field("Item No"; Rec."Item No")
+                {
+                    ApplicationArea = All;
+                }
+
             }
         }
     }

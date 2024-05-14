@@ -1,10 +1,10 @@
-page 50152 PerfionPriceSync
+page 50157 PerfionDataSyncIn
 {
     PageType = CardPart;
     ApplicationArea = All;
     UsageCategory = Administration;
-    SourceTable = PerfionPriceSync;
-    Caption = 'Price Sync';
+    SourceTable = PerfionDataSyncIn;
+    Caption = 'Data Sync In';
 
     layout
     {
@@ -15,7 +15,6 @@ page 50152 PerfionPriceSync
                 Caption = 'Last Sync';
                 ToolTip = 'Date and time of last sync';
                 ApplicationArea = All;
-                Width = 30;
             }
             field(TotalCount; Rec.TotalCount)
             {
@@ -25,19 +24,11 @@ page 50152 PerfionPriceSync
             }
             field(Processed; Rec.Processed)
             {
-                Caption = 'Processed Last Run';
+                Caption = 'Changed Last Run';
                 ApplicationArea = All;
-                ToolTip = 'How many prices were processed last run';
-                Width = 30;
+                ToolTip = 'How many items were changed last run';
             }
-            field(SalesPriceList; Rec.SalesPriceList)
-            {
-                Caption = 'Sales Price List';
-                ApplicationArea = All;
-                TableRelation = "Price List Header".Code where("Price Type" = const("Price Type"::Sale));
-                ToolTip = 'Select which price list to update';
-                Width = 30;
-            }
+
         }
     }
     trigger OnOpenPage()

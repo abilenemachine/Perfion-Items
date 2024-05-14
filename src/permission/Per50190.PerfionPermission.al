@@ -11,9 +11,9 @@ permissionset 50190 PerfionPermission
         table PerfionConfig = X,
         page PerfionConfig = X,
 
-        tabledata PerfionErrorLog = RIMD,
-        table PerfionErrorLog = X,
-        page PerfionErrorLog = X,
+        tabledata PerfionLog = RIMD,
+        table PerfionLog = X,
+        page PerfionLog = X,
 
         codeunit PerfionPriceSync = X,
         table PerfionPriceSync = X,
@@ -22,11 +22,26 @@ permissionset 50190 PerfionPermission
         table PerfionPriceSyncLog = X,
         page PerfionPriceSyncLog = X,
 
-        codeunit PerfionDataSync = X,
-        table PerfionDataSync = X,
-        page PerfionDataSync = X,
-        tabledata PerfionDataSyncLog = RIMD,
-        table PerfionDataSyncLog = X,
-        page PerfionDataSyncLog = X;
+        codeunit PerfionDataSyncOut = X,
+        table PerfionDataSyncOut = X,
+        page PerfionDataSyncOut = X,
+        tabledata PerfionDataSyncOutLog = RIMD,
+        table PerfionDataSyncOutLog = X,
+        page PerfionDataSyncOutLog = X,
+
+        codeunit PerfionDataSyncIn = X,
+        table PerfionDataSyncIn = X,
+        page PerfionDataSyncIn = X,
+        tabledata PerfionDataSyncInLog = RIMD,
+        table PerfionDataSyncInLog = X,
+        page PerfionDataSyncInLog = X,
+
+        codeunit MagentoDataSync = X,
+        codeunit PerfionLogHandler = X,
+        codeunit MagentoLogHandler = X,
+
+        tabledata MagentoLog = RIMD,
+        table MagentoLog = X,
+        page MagentoLog = X;
     ;
 }

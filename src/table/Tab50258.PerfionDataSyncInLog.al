@@ -1,4 +1,4 @@
-table 50253 PerfionPriceSyncLog
+table 50258 PerfionDataSyncInLog
 {
     DataClassification = CustomerContent;
     InherentPermissions = rimd;
@@ -9,19 +9,20 @@ table 50253 PerfionPriceSyncLog
         {
             Editable = true;
         }
-        field(2; "Original Price"; Decimal)
+        field(2; "Original Value"; Text[100])
         {
             Editable = true;
         }
-        field(3; "Updated Price"; Decimal)
+        field(3; "Updated Value"; Text[100])
         {
             Editable = true;
         }
-        field(4; "Price Group"; Code[20])
+        field(4; "Value Type"; Enum PerfionValueType)
         {
             Editable = true;
         }
-        field(10; "Last Modified"; Text[20])
+
+        field(10; "Last Modified"; DateTime)
         {
             Editable = true;
         }
@@ -29,14 +30,18 @@ table 50253 PerfionPriceSyncLog
         {
             Editable = true;
         }
+        field(12; "Magento Sync"; Text[20])
+        {
+            Editable = true;
+        }
     }
     keys
     {
-        key(Key1; "Item No.", "Price Group")
+        key(Key1; "Item No.", "Value Type", "Last Updated")
         {
             Clustered = true;
         }
-        key(key2; "Last Updated")
+        key(Key2; "Item No.")
         {
 
         }

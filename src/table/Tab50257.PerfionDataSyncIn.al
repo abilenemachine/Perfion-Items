@@ -1,30 +1,26 @@
-table 50256 PerfionErrorLog
+table 50257 PerfionDataSyncIn
 {
-    DataClassification = CustomerContent;
+    DataClassification = ToBeClassified;
     InherentPermissions = rimd;
 
     fields
     {
-        field(1; "ID"; Integer)
-        {
-            AutoIncrement = true;
-        }
-        field(2; "Date/Time"; DateTime)
+        field(1; "Primary Key"; Code[10])
         {
         }
-        field(3; "Item No."; Code[20])
+        field(2; TotalCount; Integer)
         {
         }
-        field(4; "Process"; Text[50])
+        field(5; Processed; Integer)
         {
         }
-        field(5; "Error Message"; Text[250])
+        field(6; LastSync; DateTime)
         {
         }
     }
     keys
     {
-        key(Key1; ID)
+        key(Key1; "Primary Key")
         {
             Clustered = true;
         }

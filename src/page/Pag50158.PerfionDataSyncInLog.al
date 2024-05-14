@@ -1,10 +1,10 @@
-page 50153 PerfionPriceSyncLog
+page 50158 PerfionDataSyncInLog
 {
     PageType = ListPart;
     ApplicationArea = All;
-    SourceTable = PerfionPriceSyncLog;
+    SourceTable = PerfionDataSyncInLog;
     SourceTableView = sorting("Last Updated") order(descending);
-    caption = 'Price Sync Log';
+    caption = 'Perfion Data Sync In Log';
 
     layout
     {
@@ -18,15 +18,19 @@ page 50153 PerfionPriceSyncLog
                 {
                     ApplicationArea = All;
                 }
-                field("Original Price"; Rec."Original Price")
+                field("Original Value"; Rec."Original Value")
                 {
                     ApplicationArea = All;
                 }
-                field("Updated Price"; Rec."Updated Price")
+                field("Updated Value"; Rec."Updated Value")
                 {
                     ApplicationArea = All;
                 }
-                field("Price Group"; Rec."Price Group")
+                field("Value Type"; Rec."Value Type")
+                {
+                    ApplicationArea = All;
+                }
+                field("Magento Sync"; Rec."Magento Sync")
                 {
                     ApplicationArea = All;
                 }

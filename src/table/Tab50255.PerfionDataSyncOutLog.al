@@ -1,4 +1,4 @@
-table 50255 PerfionDataSyncLog
+table 50255 PerfionDataSyncOutLog
 {
     DataClassification = CustomerContent;
     InherentPermissions = rimd;
@@ -23,6 +23,10 @@ table 50255 PerfionDataSyncLog
         key(Key1; "Item No.")
         {
             Clustered = true;
+        }
+        key(key2; "Last Updated")
+        {
+
         }
     }
     fieldgroups

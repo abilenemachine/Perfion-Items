@@ -1,29 +1,36 @@
-table 50252 PerfionPriceSync
+table 50256 PerfionLog
 {
-    DataClassification = ToBeClassified;
+    DataClassification = CustomerContent;
     InherentPermissions = rimd;
 
     fields
     {
-        field(1; "Primary Key"; Code[10])
+        field(1; "ID"; Integer)
+        {
+            AutoIncrement = true;
+        }
+        field(2; "Date/Time"; DateTime)
         {
         }
-        field(2; TotalCount; Integer)
+        field(3; "Item No."; Code[20])
         {
         }
-        field(5; Processed; Integer)
+        field(7; "Key"; Text[200])
         {
+            DataClassification = CustomerContent;
         }
-        field(6; LastSync; DateTime)
+
+        field(6; "Process"; Enum PerfionProcess)
         {
+            DataClassification = CustomerContent;
         }
-        field(7; SalesPriceList; code[20])
+        field(5; "Error Message"; Text[250])
         {
         }
     }
     keys
     {
-        key(Key1; "Primary Key")
+        key(Key1; ID)
         {
             Clustered = true;
         }

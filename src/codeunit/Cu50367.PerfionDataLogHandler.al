@@ -1,13 +1,10 @@
 codeunit 50367 PerfionDataLogHandler
 {
-    TableNo = PerfionDataSyncLog;
+    TableNo = PerfionDataSyncOutLog;
 
     trigger OnRun()
     var
         ItemNo: Code[20];
-        ogPrice: Decimal;
-        updatedPrice: Decimal;
-        priceGroup: Code[20];
         lastModified: DateTime;
 
     begin
@@ -28,9 +25,9 @@ codeunit 50367 PerfionDataLogHandler
         end;
     end;
 
-    procedure LogItemUpdate(itemNo: Code[20]; lastModified: DateTime)
+    procedure logItemUpdate(itemNo: Code[20]; lastModified: DateTime)
     var
-        PerfionItemLog: Record PerfionDataSyncLog;
+        PerfionItemLog: Record PerfionDataSyncOutLog;
     begin
         //PerfionItemLog.DeleteAll();
         Clear(PerfionItemLog);

@@ -8,7 +8,7 @@ codeunit 50365 PerfionPriceLogHandler
         ogPrice: Decimal;
         updatedPrice: Decimal;
         priceGroup: Code[20];
-        lastModified: DateTime;
+        lastModified: Text[20];
 
     begin
         ItemNo := Rec."Item No.";
@@ -34,7 +34,7 @@ codeunit 50365 PerfionPriceLogHandler
         end;
     end;
 
-    procedure LogItemUpdate(itemNo: Code[20]; ogPrice: Decimal; updatedPrice: Decimal; priceGroup: Code[20]; lastModified: DateTime)
+    procedure logItemUpdate(itemNo: Code[20]; ogPrice: Decimal; updatedPrice: Decimal; priceGroup: Code[20]; lastModified: Text[20])
     var
         PerfionItemLog: Record PerfionPriceSyncLog;
     begin

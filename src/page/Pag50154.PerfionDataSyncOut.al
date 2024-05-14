@@ -1,10 +1,10 @@
-page 50154 PerfionDataSync
+page 50154 PerfionDataSyncOut
 {
     PageType = CardPart;
     ApplicationArea = All;
     UsageCategory = Administration;
-    SourceTable = PerfionDataSync;
-    //Caption = 'Perfion Data Sync';
+    SourceTable = PerfionDataSyncOut;
+    Caption = 'Data Sync Out';
 
     layout
     {

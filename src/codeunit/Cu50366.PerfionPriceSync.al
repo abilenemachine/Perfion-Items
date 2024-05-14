@@ -10,98 +10,47 @@ codeunit 50366 PerfionPriceSync
         perfionPriceSync.Modify();
 
         //LOGIC - Get the Perfion Token & register variables
-        initPerfion();
-
-        //LOGIC - Start the Post request to get the data from Perfion
-        PerfionPostRequest();
+        startPerfionRequest();
 
     end;
 
-
-
-    [TryFunction]
-    procedure PerfionPostRequest()
+    local procedure startPerfionRequest()
     var
-        Client: HttpClient;
-        RequestContent: HttpContent;
-        ResponseMessage: HttpResponseMessage;
-        OutputText: Text;
-        ContentHeaders: HttpHeaders;
-        AuthorizationValue: Text;
-        AuthorizationString: Text;
-        Url: Text;
         CallResponse: Text;
         Content: Text;
         ErrorList: List of [Text];
-        ErrorMsg: Text;
-
+        ErrorListMsg: Text;
+        perfionConfig: Record PerfionConfig;
     begin
-        Content := GenerateQueryContent();
-        Url := BaseUrl.TrimEnd('/');
-        RequestContent.GetHeaders(ContentHeaders);
-        ContentHeaders.Clear();
-        AuthorizationValue := 'Bearer ' + perfionToken;
-        Client.DefaultRequestHeaders.Add('Authorization', AuthorizationValue);
-        RequestContent.WriteFrom(Content);
-        ContentHeaders.Remove('Content-Type');
-        ContentHeaders.Add('Content-Type', 'application/json');
+        perfionConfig.Get();
+        manualDate := perfionConfig."Manual Date";
+        if manualDate = 0D then
+            useManualDate := false
+        else
+            useManualDate := true;
 
-        if not Client.Post(Url, RequestContent, ResponseMessage) then begin
-            ErrorHandler.logPerfionError('Get Perfion Data', GetLastErrorText());
-            Error(GetLastErrorText());
+        Content := GenerateQueryContent();
+
+        if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
+            logHandler.enterLog(Process::"Price Sync", 'perfionPostRequest', '', GetLastErrorText());
             exit;
         end;
 
-        RequestErrorHandler(ResponseMessage, ErrorList);
         if ErrorList.Count > 0 then begin
-            foreach ErrorMsg in ErrorList do begin
-                ErrorHandler.logPerfionError('Get Perfion Data', ErrorMsg);
-                Error(ErrorMsg);
+            foreach ErrorListMsg in ErrorList do begin
+                logHandler.enterLog(Process::"Price Sync", 'perfionPostRequest', '', ErrorListMsg);
             end;
+            exit;
         end;
 
-        ResponseMessage.Content.ReadAs(CallResponse);
-
-        if ResponseMessage.IsSuccessStatusCode then
-            processPerfionResponse(CallResponse)
-
+        processPerfionResponse(CallResponse)
     end;
 
-    procedure RequestErrorHandler(ResponseMessage: HttpResponseMessage; var ErrorList: List of [Text])
-    var
-        Response: Text;
-        JO: JsonObject;
-        T1: JsonToken;
-        ValueToken: JsonToken;
-        i: Integer;
-    begin
-        ResponseMessage.Content.ReadAs(Response);
-        if JO.ReadFrom(Response) then begin
-            if JO.SelectToken('message', T1) then begin
-                if T1.IsArray then
-                    if T1.AsArray().Count > 0 then begin
-                        foreach ValueToken in T1.AsArray() do ErrorList.Add('Call Error: ' + ValueToken.AsValue().AsText());
-                    end;
-            end;
-        end
-        else begin
-            if jo.Keys.Count <> 0 then
-                ErrorList.Add('Payload Error: Payload is not JSON Format.')
-            else
-                ErrorList.Add('Empty response from Perfion');
-        end;
-        if ErrorList.Count = 0 then
-            if not ResponseMessage.IsSuccessStatusCode then begin
-                ErrorList.Add('Http Status Code: ' + Format(ResponseMessage.HttpStatusCode) + ', Reason Phrase: ' + ResponseMessage.ReasonPhrase);
-            end
-            else if Response.Contains('<!doctype') then ErrorList.Add('Bad Response received.');
-    end;
-
-    [TryFunction]
     local procedure processPerfionResponse(response: Text)
     var
         responseObject: JsonObject;
         dataToken: JsonToken;
+        totalToken: JsonToken;
         itemsToken: JsonToken;
         valuesToken: JsonToken;
         valueItemToken: JsonToken;
@@ -116,63 +65,137 @@ codeunit 50366 PerfionPriceSync
         modifiedDate: Date;
         changeCount: Integer;
         perfionPriceSync: Record PerfionPriceSync;
+        dateYesterday: Date;
+        itemNum: Code[20];
 
     begin
         changeCount := 0;
-        responseObject.ReadFrom(response);
-        responseObject.SelectToken('Data', dataToken);
-        dataToken.SelectToken('Items', itemsToken);
+        if responseObject.ReadFrom(response) then begin
+            responseObject.SelectToken('Data', dataToken);
+            dataToken.SelectToken('totalCount', totalToken);
+            dataToken.SelectToken('Items', itemsToken);
 
-        foreach itemsToken in itemsToken.AsArray() do begin
-            itemsToken.SelectToken('Values', valuesToken);
-            if valuesToken.AsArray().Count > 0 then begin
-                valuesToken.AsArray().Get(0, valueItemToken);
-                valueItemToken.SelectToken('value', itemNumToken);
+            foreach itemsToken in itemsToken.AsArray() do begin
+                itemsToken.SelectToken('Values', valuesToken);
+                if valuesToken.AsArray().Count > 0 then begin
+                    valuesToken.AsArray().Get(0, valueItemToken);
+                    valueItemToken.SelectToken('value', itemNumToken);
 
-                foreach valuesToken in valuesToken.AsArray() do begin
-                    valuesToken.SelectToken('featureId', featureId);
-                    if featureId.AsValue().AsInteger() <> 100 then begin
+                    Clear(itemNum);
+                    itemNum := itemNumToken.AsValue().AsCode();
 
-                        valuesToken.SelectToken('modifiedDate', itemDateModified);
-                        modifiedDate := DT2Date(itemDateModified.AsValue().AsDateTime());
+                    if checkItem(itemNum) then begin
 
-                        //DEVELOPER - Testing Only
-                        //dateYesterday := DMY2Date(1, 4, 2024);
+                        foreach valuesToken in valuesToken.AsArray() do begin
+                            valuesToken.SelectToken('featureId', featureId);
+                            if featureId.AsValue().AsInteger() <> 100 then begin
 
-                        if modifiedDate > dateYesterday then begin
-                            valuesToken.SelectToken('value', itemPriceToken);
-                            valuesToken.SelectToken('featureName', itemPriceTypeToken);
-                            updatePriceListLine(itemNumToken.AsValue().AsCode(), itemPriceToken.AsValue().AsDecimal(), itemPriceTypeToken.AsValue().AsText(), itemDateModified.AsValue().AsDateTime());
-                            changeCount += 1;
+                                valuesToken.SelectToken('modifiedDate', itemDateModified);
+                                modifiedDate := DT2Date(itemDateModified.AsValue().AsDateTime());
+
+                                valuesToken.SelectToken('value', itemPriceToken);
+                                valuesToken.SelectToken('featureName', itemPriceTypeToken);
+                                if modifiedDate = 0D then
+                                    updatePriceListLine(itemNumToken.AsValue().AsCode(), itemPriceToken.AsValue().AsDecimal(), itemPriceTypeToken.AsValue().AsText(), '')
+                                else
+                                    updatePriceListLine(itemNumToken.AsValue().AsCode(), itemPriceToken.AsValue().AsDecimal(), itemPriceTypeToken.AsValue().AsText(), format(getLocalDateTime(itemDateModified.AsValue().AsDateTime())));
+                                changeCount += 1;
+                            end;
                         end;
                     end;
-                end;
-            end
+                end
+            end;
         end;
         perfionPriceSync.Get();
         perfionPriceSync.Processed := changeCount;
+        perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
         perfionPriceSync.Modify();
 
     end;
 
-    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: DateTime)
+    local procedure checkItem(itemNo: Code[20]): Boolean
+    var
+        recItem: Record Item;
+
+    begin
+        if Text.StrLen(itemNo) > 20 then begin
+            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item Num too long');
+            exit(false);
+        end;
+        recItem.Reset();
+
+        if not recItem.Get(itemNo) then begin
+            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item not in BC');
+            exit(false);
+        end
+        else if recItem.Blocked then begin
+            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item Blocked in BC');
+            exit(false);
+        end
+        else
+            exit(true);
+    end;
+
+    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text)
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
         perfionPriceSync: Record PerfionPriceSync;
+        currentPriceList: Code[20];
 
     begin
         perfionPriceSync.Get();
+        currentPriceList := perfionPriceSync.SalesPriceList;
+
         priceList.Reset();
-        priceList.SetRange("Price List Code", perfionPriceSync.SalesPriceList);
+        priceList.SetRange("Price List Code", currentPriceList);
         priceList.SetFilter("Product No.", itemNo);
         priceList.SetFilter("Source No.", getPriceGroup(priceGroup));
         if priceList.FindFirst() then begin
-            originalPrice := priceList."Unit Price";
+            if priceList."Unit Price" <> price then begin
+                originalPrice := priceList."Unit Price";
+                priceList."Unit Price" := price;
+
+                if priceList.Modify() then
+                    priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
+                else
+                    logHandler.enterLog(Process::"Price Sync", 'Error Updating Price', itemNo, GetLastErrorText());
+            end;
+        end
+        else begin
+            priceList.Reset();
+            priceList.Init();
+            priceList."Price List Code" := currentPriceList;
+            priceList."Source Type" := "Price Source Type"::"All Customers";
+            priceList."Source No." := getPriceGroup(priceGroup);
+            priceList."Asset Type" := "Price Asset Type"::Item;
+            priceList."Asset No." := itemNo;
+            priceList."Starting Date" := getPriceListStartDate(currentPriceList);
+            priceList."Unit of Measure Code" := 'EACH';
+            priceList."Amount Type" := "Price Amount Type"::Price;
+            priceList."Price Type" := "Price Type"::Sale;
+            priceList.Status := "Price Status"::Active;
             priceList."Unit Price" := price;
-            logHandler.LogItemUpdate(itemNo, originalPrice, price, priceList."Source No.", getLocalDateTime(modified));
-            priceList.Modify();
+            priceList."Source Group" := "Price Source Group"::Customer;
+            priceList."Product No." := itemNo;
+            priceList."Assign-to No." := getPriceGroup(priceGroup);
+            if priceList.Insert() then
+                priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
+            else
+                logHandler.enterLog(Process::"Price Sync", 'Error Adding Price', itemNo, GetLastErrorText());
         end;
+    end;
+
+    local procedure getPriceListStartDate(SalesPriceList: Code[20]): Date
+    var
+        priceList: Record "Price List Line";
+
+    begin
+        priceList.Reset();
+        priceList.SetRange("Price List Code", SalesPriceList);
+        if priceList.FindFirst() then
+            exit(priceList."Starting Date")
+
     end;
 
     local procedure getPriceGroup(priceGroup: Text): Code[20]
@@ -211,6 +234,7 @@ codeunit 50366 PerfionPriceSync
         //LOGIC - Build the Select Query
         //NOTE - Build the select object
         jObjSelect.Add('languages', 'EN');
+        jObjSelect.Add('options', 'IncludeTotalCount,ExcludeFeatureDefinitions');
 
         //NOTE - Add features (attributes) needed from Perfion. This is done in buildFeatures()
         jObjSelect.Add('Features', buildFeatures());
@@ -219,7 +243,7 @@ codeunit 50366 PerfionPriceSync
         jObjQueryInner.Add('Select', jObjSelect);
 
         //LOGIC - Build the From Query
-        jObjFrom.Add('id', 'Product');
+        jObjFrom.Add('id', '100');
         jArrFrom.Add(jObjFrom);
         jObjQueryInner.Add('From', jArrFrom);
 
@@ -279,6 +303,14 @@ codeunit 50366 PerfionPriceSync
     begin
         features := buildListPriceTypes();
 
+        jObject.Add('Clause', buildBrandClause());
+        jArray.Add(jObject);
+        Clear(jObject);
+        jObject.Add('Clause', buildItemTypeClause());
+        jArray.Add(jObject);
+        Clear(jObject);
+        logHandler.enterLog(Process::"Price Sync", 'Setting Clause Date', '', getApiDateFormatText());
+
         foreach feature in features do begin
             jObject.Add('Clause', buildClauses(feature));
             jObject.Add('Or', jObjectEmpty);
@@ -289,21 +321,39 @@ codeunit 50366 PerfionPriceSync
         exit(jArray);
     end;
 
+    local procedure buildBrandClause(): JsonObject
+    var
+        jObjValue: JsonObject;
+    begin
+
+        jObjValue.Add('id', 'brand');
+        jObjValue.Add('operator', '=');
+        jObjValue.Add('value', 'Normal');
+        exit(jObjValue);
+    end;
+
+    local procedure buildItemTypeClause(): JsonObject
+    var
+        jObjValue: JsonObject;
+        jObjValueDetail: JsonObject;
+        jArrValue: JsonArray;
+
+    begin
+        jObjValue.Add('id', 'BCItemType');
+        jObjValue.Add('operator', 'IN');
+        jArrValue.Add('Assembly');
+        jArrValue.Add('Prod. Order');
+        jArrValue.Add('Purchase');
+        jObjValue.Add('value', jArrValue);
+        exit(jObjValue);
+    end;
+
     local procedure buildClauses(priceType: Text): JsonObject
     var
         jObjValue: JsonObject;
         jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-        utcYesterday: DateTime;
-        utcToday: DateTime;
-        TypeHelper: Codeunit "Type Helper";
-        utcTodayText: Text;
-
     begin
-        utcYesterday := getDateYesterday();
-        utcToday := TypeHelper.GetCurrUTCDateTime();
-
-        utcTodayText := Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>');
 
         //NOTE - example format Perfion expects 2024-05-04 00:00:00"
 
@@ -312,11 +362,26 @@ codeunit 50366 PerfionPriceSync
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-01 00:00:00');
         //jArrValue.Add('2024-05-05 23:00:00');
-        jArrValue.Add(utcTodayText + ' 00:00:00');
-        jArrValue.Add(utcTodayText + ' 23:00:00');
+        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
+        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
         jObjValue.Add('value', jArrValue);
-
         exit(jObjValue);
+    end;
+
+    local procedure getApiDateFormatText(): Text
+    var
+        utcToday: DateTime;
+        TypeHelper: Codeunit "Type Helper";
+        utcTodayText: Text;
+        manualDateText: Text;
+
+    begin
+        utcToday := TypeHelper.GetCurrUTCDateTime();
+        if useManualDate then
+            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
+        else
+            exit(Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>'));
+
     end;
 
     local procedure getLocalDateTime(utc: DateTime): DateTime
@@ -326,76 +391,13 @@ codeunit 50366 PerfionPriceSync
         exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
     end;
 
-    local procedure getDateYesterday(): DateTime
     var
-        UTC_DT: DateTime;
-        UTC_D: Date;
-        TypeHelper: Codeunit "Type Helper";
-    begin
-        UTC_DT := TypeHelper.GetCurrUTCDateTime();
-        UTC_D := DT2Date(UTC_DT);
-        dateYesterday := DMY2Date(Date2DMY(UTC_D, 1) - 1, Date2DMY(UTC_D, 2), Date2DMY(UTC_D, 3));
-        exit(CreateDateTime(dateYesterday, DT2Time(UTC_DT)))
-    end;
-
-    local procedure initPerfion()
-    var
-        perfionConfig: Record PerfionConfig;
-    begin
-        //BaseUrl := 'https://abilene-api.perfioncloud.com/data';
-
-        //LOGIC - Check that the config has been entered
-        if not perfionConfig.Get() then Error('Perfion has not been configured.  Please setup using Perfion Configuration.');
-
-        //LOGIC - get the token from Perfion
-        getToken();
-        perfionToken := perfionConfig."Access Token";
-        BaseUrl := perfionConfig."Perfion Base URL";
-        SendInventory := perfionConfig.Enabled;
-    end;
-
-    procedure getToken()
-    var
-        Client: HttpClient;
-        RequestContent: HttpContent;
-        ResponseMessage: HttpResponseMessage;
-        tokenUrl: Text;
-        CallResponse: Text;
-        responseObject: JsonObject;
-        dataToken: JsonToken;
-        perfionConfig: Record PerfionConfig;
-
-    begin
-        //LOGIC - Get the token from Perfion. A token last for a period of time. When it expires a new one must get generated.
-        //LOGIC - This runs every time to ensure a current token is established
-        //NOTE - More info on this can be found here https://perfion.atlassian.net/wiki/spaces/PIM/pages/244330998/Authentication
-        tokenUrl := 'https://abilene-api.perfioncloud.com/token?username=API&password=OXi3/3vKHtkzR4xgHNFL78uFZEH2MjsOj3qEID6eWw0=&grant_type=Password';
-
-        //LOGIC - Run the GET call on the HttpClient. The tokenUrl is the input and the ResponseMessage is the output.
-        Client.Get(tokenUrl, ResponseMessage);
-
-        //LOGIC - Read the ResponseMessage and store in CallResponse Text var.
-        ResponseMessage.Content.ReadAs(CallResponse);
-
-        if ResponseMessage.IsSuccessStatusCode then begin
-            responseObject.ReadFrom(CallResponse);
-            responseObject.SelectToken('access_token', dataToken);
-            perfionConfig.Get();
-            perfionConfig."Access Token" := dataToken.AsValue().AsText();
-            perfionConfig.Modify();
-        end;
-
-    end;
-
-    var
-        BaseURL: Text;
-        perfionToken: Text;
-        SendInventory: Boolean;
-        WarehouseCodeList: List of [Code[10]];
-        WarehouseIDList: Dictionary of [Code[10], Integer];
-        dateYesterday: Date;
-        errorHandler: Codeunit PerfionErrorHandler;
-        logHandler: Codeunit PerfionPriceLogHandler;
+        useManualDate: Boolean;
+        manualDate: Date;
+        logHandler: Codeunit PerfionLogHandler;
+        priceLogHandler: Codeunit PerfionPriceLogHandler;
+        Process: Enum PerfionProcess;
+        apiHandler: Codeunit PerfionApiHandler;
 
     /*
 

@@ -1,11 +1,11 @@
-codeunit 50363 PerfionDataSync
+codeunit 50363 PerfionDataSyncOut
 {
     trigger OnRun()
     var
         items: Record Item;
         rec: Record PerfionItems;
         Values: List of [Decimal];
-        perfionDataSync: Record PerfionDataSync;
+        perfionDataSync: Record PerfionDataSyncOut;
         changeCount: Integer;
 
     begin
@@ -76,7 +76,7 @@ codeunit 50363 PerfionDataSync
                 end;
 
                 rec.Insert();
-                logHandler.LogItemUpdate(rec."No.", items."Last DateTime Modified");
+                logHandler.logItemUpdate(rec."No.", items."Last DateTime Modified");
                 changeCount += 1;
             until items.Next() = 0;
 

@@ -1,4 +1,4 @@
-table 50254 PerfionDataSync
+table 50254 PerfionDataSyncOut
 {
     DataClassification = ToBeClassified;
     InherentPermissions = rimd;
