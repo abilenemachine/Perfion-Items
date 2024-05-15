@@ -4,7 +4,7 @@ page 50152 PerfionPriceSync
     ApplicationArea = All;
     UsageCategory = Administration;
     SourceTable = PerfionPriceSync;
-    Caption = 'Price Sync';
+    Caption = 'Price Sync Info';
 
     layout
     {

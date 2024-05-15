@@ -63,13 +63,24 @@ codeunit 50366 PerfionPriceSync
         featureId: JsonToken;
 
         modifiedDate: Date;
-        changeCount: Integer;
         perfionPriceSync: Record PerfionPriceSync;
-        dateYesterday: Date;
         itemNum: Code[20];
+        priceType: Text;
+        priceAmount: Decimal;
+        modifiedDateTime: DateTime;
+        modifiedDateTimeText: Text;
+        arrPrice: array[5] of Decimal;
+        arrDateTime: array[5] of Text;
+        arrPriceType: array[5] of Text;
+        index: Integer;
 
     begin
         changeCount := 0;
+        arrPriceType[1] := 'W05Calculated';
+        arrPriceType[2] := 'W1Calculated';
+        arrPriceType[3] := 'W2Calculated';
+        arrPriceType[4] := 'W3Calculated';
+        arrPriceType[5] := 'W4Calculated';
         if responseObject.ReadFrom(response) then begin
             responseObject.SelectToken('Data', dataToken);
             dataToken.SelectToken('totalCount', totalToken);
@@ -95,13 +106,48 @@ codeunit 50366 PerfionPriceSync
 
                                 valuesToken.SelectToken('value', itemPriceToken);
                                 valuesToken.SelectToken('featureName', itemPriceTypeToken);
+                                priceType := itemPriceTypeToken.AsValue().AsText();
+                                priceAmount := itemPriceToken.AsValue().AsDecimal();
+                                modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+
                                 if modifiedDate = 0D then
-                                    updatePriceListLine(itemNumToken.AsValue().AsCode(), itemPriceToken.AsValue().AsDecimal(), itemPriceTypeToken.AsValue().AsText(), '')
+                                    modifiedDateTimeText := ''
                                 else
-                                    updatePriceListLine(itemNumToken.AsValue().AsCode(), itemPriceToken.AsValue().AsDecimal(), itemPriceTypeToken.AsValue().AsText(), format(getLocalDateTime(itemDateModified.AsValue().AsDateTime())));
-                                changeCount += 1;
+                                    modifiedDateTimeText := format(getLocalDateTime(modifiedDateTime));
+
+                                case priceType of
+                                    'RetailPrice':
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
+                                    'Wholesale':
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
+                                    'W05Calculated':
+                                        arrPrice[1] := priceAmount;
+                                    'W1Calculated':
+                                        arrPrice[2] := priceAmount;
+                                    'W2Calculated':
+                                        arrPrice[3] := priceAmount;
+                                    'W3Calculated':
+                                        arrPrice[4] := priceAmount;
+                                    'W4Calculated':
+                                        arrPrice[5] := priceAmount;
+                                    'W05MaxDiscount':
+                                        arrDateTime[1] := modifiedDateTimeText;
+                                    'W1MaxDiscount':
+                                        arrDateTime[2] := modifiedDateTimeText;
+                                    'W2MaxDiscount':
+                                        arrDateTime[3] := modifiedDateTimeText;
+                                    'W3MaxDiscount':
+                                        arrDateTime[4] := modifiedDateTimeText;
+                                    'W4MaxDiscount':
+                                        arrDateTime[5] := modifiedDateTimeText;
+                                end;
+
+
                             end;
                         end;
+
+                        for index := 1 to 5 do
+                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
                     end;
                 end
             end;
@@ -155,6 +201,7 @@ codeunit 50366 PerfionPriceSync
             if priceList."Unit Price" <> price then begin
                 originalPrice := priceList."Unit Price";
                 priceList."Unit Price" := price;
+                changeCount += 1;
 
                 if priceList.Modify() then
                     priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
@@ -179,6 +226,7 @@ codeunit 50366 PerfionPriceSync
             priceList."Source Group" := "Price Source Group"::Customer;
             priceList."Product No." := itemNo;
             priceList."Assign-to No." := getPriceGroup(priceGroup);
+            changeCount += 1;
             if priceList.Insert() then
                 priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
             else
@@ -262,7 +310,18 @@ codeunit 50366 PerfionPriceSync
         exit(Format(jObjQuery));
     end;
 
-    local procedure buildListPriceTypes() features: List of [Text]
+    local procedure buildListPriceClause() features: List of [Text]
+    begin
+        features.Add('RetailPrice');
+        features.Add('Wholesale');
+        features.Add('W05MaxDiscount');
+        features.Add('W1MaxDiscount');
+        features.Add('W2MaxDiscount');
+        features.Add('W3MaxDiscount');
+        features.Add('W4MaxDiscount');
+    end;
+
+    local procedure buildListPriceFeatures() features: List of [Text]
     begin
         features.Add('RetailPrice');
         features.Add('Wholesale');
@@ -271,6 +330,11 @@ codeunit 50366 PerfionPriceSync
         features.Add('W2Calculated');
         features.Add('W3Calculated');
         features.Add('W4Calculated');
+        features.Add('W05MaxDiscount');
+        features.Add('W1MaxDiscount');
+        features.Add('W2MaxDiscount');
+        features.Add('W3MaxDiscount');
+        features.Add('W4MaxDiscount');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -281,7 +345,7 @@ codeunit 50366 PerfionPriceSync
         jArray: JsonArray;
 
     begin
-        features := buildListPriceTypes();
+        features := buildListPriceFeatures();
 
         foreach feature in features do begin
             jObject.Add('id', feature);
@@ -301,7 +365,7 @@ codeunit 50366 PerfionPriceSync
         jArray: JsonArray;
 
     begin
-        features := buildListPriceTypes();
+        features := buildListPriceClause();
 
         jObject.Add('Clause', buildBrandClause());
         jArray.Add(jObject);
@@ -398,6 +462,7 @@ codeunit 50366 PerfionPriceSync
         priceLogHandler: Codeunit PerfionPriceLogHandler;
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
+        changeCount: Integer;
 
     /*
 

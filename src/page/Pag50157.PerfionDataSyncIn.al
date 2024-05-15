@@ -4,7 +4,7 @@ page 50157 PerfionDataSyncIn
     ApplicationArea = All;
     UsageCategory = Administration;
     SourceTable = PerfionDataSyncIn;
-    Caption = 'Data Sync In';
+    Caption = 'Data Sync In Info';
 
     layout
     {

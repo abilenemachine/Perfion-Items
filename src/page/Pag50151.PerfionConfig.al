@@ -22,55 +22,47 @@ page 50151 PerfionConfig
 
                     }
                 }
-
-                group(PriceSyncGroup)
-                {
-                    ShowCaption = false;
-                    part(PerfionPriceSync; PerfionPriceSync)
-                    {
-                        ApplicationArea = All;
-                    }
-                }
-
-                group(DataSyncInGroup)
-                {
-                    ShowCaption = false;
-                    part(PerfionDataSyncIn; PerfionDataSyncIn)
-                    {
-                        ApplicationArea = All;
-                    }
-                }
-
-                group(DataSyncOutGroup)
-                {
-                    ShowCaption = false;
-                    part(PerfionDataSync; PerfionDataSyncOut)
-                    {
-                        ApplicationArea = All;
-                    }
-                }
-
-
             }
-            group("Price Sync Log")
+
+            group(PriceSyncGroup)
             {
-                part(PriceSyncLog; PerfionPriceSyncLog)
+                ShowCaption = true;
+                Caption = 'Price Sync';
+
+                part(PerfionPriceSync; PerfionPriceSync)
                 {
                     ApplicationArea = All;
                 }
 
+                part(PriceSyncLog; PerfionPriceSyncLog)
+                {
+                    ApplicationArea = All;
+                }
             }
 
-            group("Data Sync In Log")
+            group(DataSyncInGroup)
             {
+                ShowCaption = true;
+                Caption = 'Data Sync In';
+                part(PerfionDataSyncIn; PerfionDataSyncIn)
+                {
+                    ApplicationArea = All;
+                }
+
                 part(PerfionDataSyncInLog; PerfionDataSyncInLog)
                 {
                     ApplicationArea = All;
                 }
             }
 
-            group("Data Sync Out Log")
+            group(DataSyncOutGroup)
             {
+                ShowCaption = true;
+                Caption = 'Data Sync Out';
+                part(PerfionDataSync; PerfionDataSyncOut)
+                {
+                    ApplicationArea = All;
+                }
                 part(DataSyncLog; PerfionDataSyncOutLog)
                 {
                     ApplicationArea = All;
