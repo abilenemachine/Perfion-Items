@@ -73,6 +73,7 @@ codeunit 50366 PerfionPriceSync
         arrDateTime: array[5] of Text;
         arrPriceType: array[5] of Text;
         index: Integer;
+        changeCount: Integer;
 
     begin
         changeCount := 0;
@@ -101,6 +102,9 @@ codeunit 50366 PerfionPriceSync
                             valuesToken.SelectToken('featureId', featureId);
                             if featureId.AsValue().AsInteger() <> 100 then begin
 
+                                Clear(modifiedDateTimeText);
+                                Clear(modifiedDate);
+
                                 valuesToken.SelectToken('modifiedDate', itemDateModified);
                                 modifiedDate := DT2Date(itemDateModified.AsValue().AsDateTime());
 
@@ -117,9 +121,9 @@ codeunit 50366 PerfionPriceSync
 
                                 case priceType of
                                     'RetailPrice':
-                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, changeCount);
                                     'Wholesale':
-                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, changeCount);
                                     'W05Calculated':
                                         arrPrice[1] := priceAmount;
                                     'W1Calculated':
@@ -147,7 +151,7 @@ codeunit 50366 PerfionPriceSync
                         end;
 
                         for index := 1 to 5 do
-                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
+                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index], changeCount);
                     end;
                 end
             end;
@@ -182,7 +186,7 @@ codeunit 50366 PerfionPriceSync
             exit(true);
     end;
 
-    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text)
+    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; var changeCount: Integer)
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
@@ -201,10 +205,11 @@ codeunit 50366 PerfionPriceSync
             if priceList."Unit Price" <> price then begin
                 originalPrice := priceList."Unit Price";
                 priceList."Unit Price" := price;
-                changeCount += 1;
 
-                if priceList.Modify() then
-                    priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
+                if priceList.Modify() then begin
+                    priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified);
+                    changeCount += 1;
+                end
                 else
                     logHandler.enterLog(Process::"Price Sync", 'Error Updating Price', itemNo, GetLastErrorText());
             end;
@@ -226,9 +231,11 @@ codeunit 50366 PerfionPriceSync
             priceList."Source Group" := "Price Source Group"::Customer;
             priceList."Product No." := itemNo;
             priceList."Assign-to No." := getPriceGroup(priceGroup);
-            changeCount += 1;
-            if priceList.Insert() then
-                priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified)
+
+            if priceList.Insert() then begin
+                priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified);
+                changeCount += 1;
+            end
             else
                 logHandler.enterLog(Process::"Price Sync", 'Error Adding Price', itemNo, GetLastErrorText());
         end;
@@ -462,7 +469,6 @@ codeunit 50366 PerfionPriceSync
         priceLogHandler: Codeunit PerfionPriceLogHandler;
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
-        changeCount: Integer;
 
     /*
 

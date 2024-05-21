@@ -6,7 +6,7 @@ codeunit 50369 PerfionDataInLogHandler
     var
 
     begin
-
+        Rec.Insert();
     end;
 
     procedure LogItemUpdate(itemNo: Code[20]; updatedValue: Text; ogValue: Text; valueType: Enum PerfionValueType; lastModified: DateTime)
@@ -22,7 +22,7 @@ codeunit 50369 PerfionDataInLogHandler
         perfionItemLog."Value Type" := valueType;
         perfionItemLog."Last Modified" := lastModified;
         perfionItemLog."Last Updated" := CurrentDateTime;
-        perfionItemLog.Insert();
+        StartSession(SessionId, Codeunit::PerfionDataInLogHandler, CompanyName, perfionItemLog);
     end;
 
     procedure logMagentoSync(itemNo: Code[20]; isSyncd: Text)

@@ -195,9 +195,12 @@ codeunit 50368 PerfionDataSyncIn
             if recItem.Description <> newDescription then begin
                 oldDescription := recItem.Description;
                 recItem.Description := newDescription;
-                recItem.Modify();
-                changeCount += 1;
-                dataLogHandler.LogItemUpdate(itemNo, newDescription, oldDescription, Enum::PerfionValueType::Description, getLocalDateTime(modified));
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newDescription, oldDescription, Enum::PerfionValueType::Description, getLocalDateTime(modified));
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Description', itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -214,11 +217,13 @@ codeunit 50368 PerfionDataSyncIn
             if recItem."Item Category Code" <> newCategory then begin
                 oldCategory := recItem."Item Category Code";
                 recItem."Item Category Code" := newCategory;
-                recItem.Modify();
-                changeCount += 1;
-                dataLogHandler.LogItemUpdate(itemNo, newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, getLocalDateTime(modified));
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, getLocalDateTime(modified));
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Item Category', itemNo, GetLastErrorText());
             end;
-
         end;
     end;
 
@@ -239,20 +244,26 @@ codeunit 50368 PerfionDataSyncIn
                 oldCoreValue := recItem."Core Sales Value";
                 recItem."Core Sales Value" := newCoreValue;
 
-                recItem.Modify();
-                needSync := true;
-                changeCount += 1;
-                dataLogHandler.LogItemUpdate(itemNo, Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, getLocalDateTime(modified));
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, getLocalDateTime(modified));
+                    changeCount += 1;
+                    needSync := true;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Core Value', itemNo, GetLastErrorText());
             end;
 
             if recItem."Core Resource Name" <> newCoreResource then begin
                 oldCoreResource := recItem."Core Resource Name";
                 recItem."Core Resource Name" := newCoreResource;
 
-                recItem.Modify();
-                needSync := true;
-                changeCount += 1;
-                dataLogHandler.LogItemUpdate(itemNo, Format(newCoreResource), Format(oldCoreResource), Enum::PerfionValueType::CoreResource, getLocalDateTime(modified));
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreResource), Format(oldCoreResource), Enum::PerfionValueType::CoreResource, getLocalDateTime(modified));
+                    changeCount += 1;
+                    needSync := true;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Core Resource', itemNo, GetLastErrorText());
             end;
 
             if needSync then

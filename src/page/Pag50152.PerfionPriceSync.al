@@ -15,7 +15,6 @@ page 50152 PerfionPriceSync
                 Caption = 'Last Sync';
                 ToolTip = 'Date and time of last sync';
                 ApplicationArea = All;
-                Width = 30;
             }
             field(TotalCount; Rec.TotalCount)
             {
@@ -28,7 +27,6 @@ page 50152 PerfionPriceSync
                 Caption = 'Processed Last Run';
                 ApplicationArea = All;
                 ToolTip = 'How many prices were processed last run';
-                Width = 30;
             }
             field(SalesPriceList; Rec.SalesPriceList)
             {
@@ -36,7 +34,6 @@ page 50152 PerfionPriceSync
                 ApplicationArea = All;
                 TableRelation = "Price List Header".Code where("Price Type" = const("Price Type"::Sale));
                 ToolTip = 'Select which price list to update';
-                Width = 30;
             }
         }
     }

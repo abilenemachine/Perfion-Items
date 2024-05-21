@@ -189,6 +189,7 @@ codeunit 50370 MagentoDataSync
         ItemsToken: JsonToken;
         ErrorList: List of [Text];
         ErrorListMsg: Text;
+        logHandler: Codeunit PerfionDataInLogHandler;
     begin
         Endpoint := '/rest/V1/products?searchCriteria[filterGroups][0][filters][0][field]=sku&searchCriteria[filterGroups][0][filters][0][value]=' + recItem."No." + '&searchCriteria[filterGroups][0][filters][0][conditionType]=eq';
         if not MagentoGetRequest(Endpoint, CallResponse, ErrorList) then begin
@@ -207,6 +208,7 @@ codeunit 50370 MagentoDataSync
         if not (ItemsToken.AsArray().Count > 0) then begin
             exit(false);
             magentoLogHandler.enterLog(Process::"Get Core", 'CheckMagentoSku', 'Not Found on Magento', recItem."No.");
+            logHandler.logMagentoSync(recItem."No.", 'Not Found');
         end;
         exit(true);
     end;
