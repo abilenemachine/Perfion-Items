@@ -55,6 +55,21 @@ page 50151 PerfionConfig
                 }
             }
 
+            group(DataReconcileGroup)
+            {
+                ShowCaption = true;
+                Caption = 'Data Reconcile';
+                part(PerfionDataReconcile; PerfionDataReconcile)
+                {
+                    ApplicationArea = All;
+                }
+
+                part(PerfionDataReconcileLog; PerfionDataReconcileLog)
+                {
+                    ApplicationArea = All;
+                }
+            }
+
             group(DataSyncOutGroup)
             {
                 ShowCaption = true;
@@ -89,6 +104,23 @@ page 50151 PerfionConfig
                     perfionPriceSync: Codeunit PerfionPriceSync;
                 begin
                     perfionPriceSync.Run();
+                    CurrPage.Update();
+                end;
+
+            }
+
+            action("Reconcile")
+            {
+                ApplicationArea = All;
+                Caption = 'Reconcile';
+                Image = Reconcile;
+                Promoted = true;
+
+                trigger OnAction()
+                var
+                    perfionReconcile: Codeunit PerfionDataSyncReconcile;
+                begin
+                    perfionReconcile.Run();
                     CurrPage.Update();
                 end;
 
@@ -178,6 +210,24 @@ page 50151 PerfionConfig
 
                 begin
                     magentoLog.DeleteAll();
+                end;
+
+            }
+
+            action("ClearReconcileLog")
+            {
+                ApplicationArea = All;
+                Caption = 'Clear Reconcile Log';
+                Image = ClearLog;
+                Promoted = true;
+
+                trigger OnAction()
+                var
+                    perfionLog: Record PerfionDataReconcileLog;
+
+                begin
+                    perfionLog.DeleteAll();
+                    CurrPage.Update();
                 end;
 
             }

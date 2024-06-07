@@ -320,6 +320,7 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('SAGroup2');
         features.Add('Core');
         features.Add('CoreResourceName');
+        features.Add('Category');
     end;
 
     local procedure buildFeatures(): JsonArray

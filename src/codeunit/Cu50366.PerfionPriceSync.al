@@ -73,7 +73,6 @@ codeunit 50366 PerfionPriceSync
         arrDateTime: array[5] of Text;
         arrPriceType: array[5] of Text;
         index: Integer;
-        changeCount: Integer;
 
     begin
         changeCount := 0;
@@ -121,9 +120,9 @@ codeunit 50366 PerfionPriceSync
 
                                 case priceType of
                                     'RetailPrice':
-                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, changeCount);
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
                                     'Wholesale':
-                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, changeCount);
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
                                     'W05Calculated':
                                         arrPrice[1] := priceAmount;
                                     'W1Calculated':
@@ -151,7 +150,7 @@ codeunit 50366 PerfionPriceSync
                         end;
 
                         for index := 1 to 5 do
-                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index], changeCount);
+                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
                     end;
                 end
             end;
@@ -186,7 +185,7 @@ codeunit 50366 PerfionPriceSync
             exit(true);
     end;
 
-    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; var changeCount: Integer)
+    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text)
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
@@ -465,6 +464,7 @@ codeunit 50366 PerfionPriceSync
     var
         useManualDate: Boolean;
         manualDate: Date;
+        changeCount: Integer;
         logHandler: Codeunit PerfionLogHandler;
         priceLogHandler: Codeunit PerfionPriceLogHandler;
         Process: Enum PerfionProcess;

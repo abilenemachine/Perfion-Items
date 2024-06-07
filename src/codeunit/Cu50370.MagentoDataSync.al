@@ -10,15 +10,7 @@ codeunit 50370 MagentoDataSync
 
     procedure sendCoreData(itemNo: Code[20])
     begin
-        initMagento();
-        if not recItem.Get(itemNo) then
-            exit;
-
-        if recItem."Core Sales Value" <> 0 then
-            UpdateMagentoCoreData('PRICE')
-        else
-            DeleteMagentoCoreData()
-
+        initMagento(itemNo);
     end;
 
     local procedure UpdateMagentoCoreData(FieldName: Code[10])
@@ -33,8 +25,14 @@ codeunit 50370 MagentoDataSync
         logHandler: Codeunit PerfionDataInLogHandler;
 
     begin
-        if not CheckMagentoSku then exit;
-        if not GetCoreOptionID(OptionID, OptionToken) then exit;
+        if not CheckMagentoSku then begin
+            magentoLogHandler.enterLog(Process::"Find Core", 'CheckMagentoSku', GetLastErrorText(), recItem."No.");
+            exit;
+        end;
+        if not GetCoreOptionID(OptionID, OptionToken) then begin
+            magentoLogHandler.enterLog(Process::"Find Core", 'GetCoreOptionID', GetLastErrorText(), recItem."No.");
+            exit;
+        end;
         Content := GenerateCoreContent(OptionToken, FieldName);
         Endpoint := '/rest/V1/products/options/' + Format(OptionID);
 
@@ -129,8 +127,10 @@ codeunit 50370 MagentoDataSync
             end;
         end;
 
-        if not CoreChargeFound then
+        if not CoreChargeFound then begin
+            magentoLogHandler.enterLog(Process::"Get Core", 'Not CoreChargeFound', GetLastErrorText(), recItem."No.");
             CreateCoreOption;
+        end;
         exit(CoreChargeFound);
     end;
 
@@ -227,7 +227,7 @@ codeunit 50370 MagentoDataSync
         ErrorMsg: Text;
 
     begin
-        InitMagento();
+
         Url := baseUrl.TrimEnd('/') + '/' + Endpoint.TrimStart('/');
         RequestContent.GetHeaders(ContentHeaders);
         ContentHeaders.Clear();
@@ -283,7 +283,7 @@ codeunit 50370 MagentoDataSync
         Response: Text;
 
     begin
-        InitMagento();
+
         Url := baseUrl.TrimEnd('/') + '/' + Endpoint.TrimStart('/');
         RequestContent.GetHeaders(ContentHeaders);
         ContentHeaders.Clear();
@@ -361,7 +361,7 @@ codeunit 50370 MagentoDataSync
         Response: Text;
         ErrorMsg: Text;
     begin
-        InitMagento();
+
         Url := baseUrl.TrimEnd('/') + '/' + Endpoint.TrimStart('/');
         RequestContent.GetHeaders(ContentHeaders);
         ContentHeaders.Clear();
@@ -387,7 +387,7 @@ codeunit 50370 MagentoDataSync
         AuthorizationValue: Text;
         Url: Text;
     begin
-        InitMagento();
+
         Url := baseUrl.TrimEnd('/') + '/' + Endpoint.TrimStart('/');
         RequestContent.GetHeaders(ContentHeaders);
         ContentHeaders.Clear();
@@ -403,7 +403,7 @@ codeunit 50370 MagentoDataSync
     end;
 
 
-    local procedure initMagento()
+    local procedure initMagento(itemNo: Code[20])
     var
         InventorySetup: Record "Inventory Setup";
     begin
@@ -414,6 +414,15 @@ codeunit 50370 MagentoDataSync
         //BaseUrl := 'https://mcstaging.abilenemachine.com/';
         magentoToken := InventorySetup."Magento API Token";
         baseUrl := InventorySetup."Magento API Base URL";
+
+        if not recItem.Get(itemNo) then
+            exit;
+
+        if recItem."Core Sales Value" <> 0 then
+            UpdateMagentoCoreData('PRICE')
+        else
+            DeleteMagentoCoreData()
+
     end;
 
     procedure RequestErrorHandler(ResponseMessage: HttpResponseMessage; var ErrorList: List of [Text])
