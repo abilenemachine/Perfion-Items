@@ -31,10 +31,6 @@ page 50117 PerfionItemList
                 {
                     ToolTip = 'Specifies the value of the Vendor No. field.';
                 }
-                field("Vendor Date Changed"; Rec."Vendor Date Changed")
-                {
-                    ToolTip = 'Specifies the date vendor was changed on item procurement card';
-                }
                 field("Unit Cost"; Rec."Unit Cost")
                 {
                     ToolTip = 'Specifies the value of the Unit Cost field.';

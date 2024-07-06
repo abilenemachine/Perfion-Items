@@ -10,4 +10,5 @@ enum 50191 PerfionValueType
     value(5; PerfionId) { }
     value(6; PerfionParentId) { }
     value(7; None) { }
+    value(8; Picture) { }
 }

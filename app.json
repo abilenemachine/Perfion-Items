@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.62",
+  "version": "1.0.0.69",
   "brief": "",
   "description": "Integration for syncing between Perfion, BC, and Magento",
   "privacyStatement": "",
@@ -18,22 +18,22 @@
       "version": "1.0.0.6"
     },
     {
-      "id": "a8c19647-b664-4902-a66a-c9f19da9121e",
-      "publisher": "Lanham Associates",
-      "name": "Lanham Demand Planning",
-      "version": "23.3.5.14"
+      "id": "d7bbc6a6-546f-477c-8460-8eb418f111dc",
+      "publisher": "Abilene",
+      "name": "Abilene SOD",
+      "version": "1.0.0.187"
+    },
+    {
+      "id": "0d3ace7e-c245-4364-a3dd-52a0cfbae19b",
+      "publisher": "Abilene",
+      "name": "Table Extensions",
+      "version": "1.0.2.1"
     },
     {
       "id": "13dd0d55-3340-471c-8cfe-8880a5147313",
       "publisher": "Synoptek - DM/RJ",
       "name": "DropShipment_Boolean_onItem&VendorMaster",
       "version": "1.0.0.42"
-    },
-    {
-      "id": "d7bbc6a6-546f-477c-8460-8eb418f111dc",
-      "publisher": "Abilene",
-      "name": "Abilene SOD",
-      "version": "1.0.0.187"
     },
     {
       "id": "48f56295-5ad7-4acd-9171-01c47b2d386e",
@@ -48,6 +48,12 @@
       "version": "1.0.0.34"
     },
     {
+      "id": "c43dcc1b-fb35-45ee-b4d8-d81285435184",
+      "name": "Core Item Modification",
+      "version": "1.0.0.13",
+      "publisher": "SSI"
+    },
+    {
       "id": "c38e7687-5ff2-4ac4-8c66-4b384e0d80e4",
       "name": "Abilene Modifications",
       "version": "1.0.0.4",
@@ -60,16 +66,10 @@
       "version": "2.7.1.0"
     },
     {
-      "id": "0d3ace7e-c245-4364-a3dd-52a0cfbae19b",
-      "publisher": "Abilene",
-      "name": "Table Extensions",
-      "version": "1.0.1.9"
-    },
-    {
-      "id": "c43dcc1b-fb35-45ee-b4d8-d81285435184",
-      "name": "Core Item Modification",
-      "version": "1.0.0.10",
-      "publisher": "SSI"
+      "id": "a8c19647-b664-4902-a66a-c9f19da9121e",
+      "publisher": "Lanham Associates",
+      "name": "Lanham Demand Planning",
+      "version": "23.3.5.14"
     }
   ],
   "screenshots": [],

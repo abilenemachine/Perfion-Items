@@ -143,13 +143,15 @@ table 50250 PerfionItems
         {
             Caption = 'Item Class Description';
         }
+        /*
         field(51; "Vendor Date Changed"; Date)
         {
             Caption = 'Vendor Date Changed';
         }
+        */
         field(52; Demand; Decimal)
         {
-            Caption = 'Vendor Date Changed';
+            Caption = 'Demand';
         }
 
         /* table 14000584 "LAX DP Surplus Inventory Value" */

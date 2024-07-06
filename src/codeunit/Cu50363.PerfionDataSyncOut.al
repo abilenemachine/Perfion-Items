@@ -20,7 +20,6 @@ codeunit 50363 PerfionDataSyncOut
 
         if items.FindSet() then
             repeat
-                Clear(VendorDateChange);
 
                 rec.Init();
                 rec."No." := items."No.";
@@ -44,7 +43,6 @@ codeunit 50363 PerfionDataSyncOut
                 rec."Item Class Description" := getItemClass(items."No.");
 
                 rec."Vendor No." := getVendor(items);
-                rec."Vendor Date Changed" := VendorDateChange;
 
                 rec."Unit Cost" := items."Unit Cost";
 
@@ -86,7 +84,6 @@ codeunit 50363 PerfionDataSyncOut
 
     var
         procureVendor: Code[20];
-        VendorDateChange: Date;
         minQty: Decimal;
 
     local procedure getOversize(item: Record Item) booleanText: Decimal
@@ -292,28 +289,6 @@ codeunit 50363 PerfionDataSyncOut
             repeat
                 value += sLines."Outstanding Quantity";
             until sLines.Next() = 0;
-    end;
-
-    local procedure getVendorDateChange(itemNo: Code[20]) dateChanged: Date
-    var
-        ChangeLog: Record "Change Log Entry";
-    begin
-        ChangeLog.Reset();
-        ChangeLog.SetRange("Table No.", 14000555);
-        ChangeLog.SetRange("Primary Key Field 1 Value", 'KS');
-        ChangeLog.SetRange("Field Log Entry Feature", Enum::"Field Log Entry Feature"::"Change Log");
-
-        if ChangeLog.FindSet() then
-            repeat
-                if ChangeLog."Primary Key Field 2 Value" = itemNo then
-                    dateChanged := DT2Date(ChangeLog."Date and Time");
-            until ChangeLog.Next() = 0;
-
-        //ChangeLog.SetRange("Primary Key Field 2 Value", itemNo);
-        //ChangeLog.SetCurrentKey("Table No.", "Date and Time");
-        //ChangeLog.SetAscending("Date and Time", false);
-        //if ChangeLog.FindFirst() then
-        //dateChanged := DT2Date(ChangeLog."Date and Time");
     end;
 
     local procedure getItemClass(itemNo: Code[20]) itemClass: text[30]

@@ -34,7 +34,6 @@ page 50150 perfionItem
                 field(ItemClass; Rec."Item Class Description") { }
                 field(ReplenishmentSystem; Rec."Replenishment System") { }
                 field(VendorNo; Rec."Vendor No.") { }
-                field(VendorDateChanged; Rec."Vendor Date Changed") { }
                 field(UnitCost; Rec."Unit Cost") { }
                 field(VendorCost; Rec."Vendor Cost") { }
                 field(ReferenceNo; Rec."Reference No.") { }

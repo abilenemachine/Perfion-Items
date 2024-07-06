@@ -27,7 +27,6 @@ page 50155 PerfionDataSyncOutLog
                 field("Unit Cost"; Rec."Unit Cost") { }
                 field("Vendor Cost"; Rec."Vendor Cost") { }
                 field("Vendor Core"; Rec."Vendor Core") { }
-                field("Vendor Date Changed"; Rec."Vendor Date Changed") { }
                 field("Minimum Qty"; Rec."Minimum Qty") { }
                 field(NMFC; Rec.NMFC) { }
                 field(Oversize; Rec.Oversize) { }

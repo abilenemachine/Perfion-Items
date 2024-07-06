@@ -9,11 +9,11 @@ table 50258 PerfionDataSyncInLog
         {
             Editable = true;
         }
-        field(2; "Original Value"; Text[100])
+        field(2; "Original Value"; Text[200])
         {
             Editable = true;
         }
-        field(3; "Updated Value"; Text[100])
+        field(3; "Updated Value"; Text[200])
         {
             Editable = true;
         }

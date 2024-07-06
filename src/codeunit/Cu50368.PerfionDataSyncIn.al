@@ -72,7 +72,7 @@ codeunit 50368 PerfionDataSyncIn
         tempCoreReasource: Code[20];
         tempCoreValue: Decimal;
         tempItemDateModified: DateTime;
-        dateLastWeek: Date;
+        modifiedDateTime: DateTime;
 
     begin
         changeCount := 0;
@@ -80,13 +80,6 @@ codeunit 50368 PerfionDataSyncIn
         responseObject.SelectToken('Data', dataToken);
         dataToken.SelectToken('totalCount', totalToken);
         dataToken.SelectToken('Items', itemsToken);
-
-        if useManualDate then
-            dateLastWeek := getManualCompareDateLastWeek()
-        else
-            dateLastWeek := getCompareDateLastWeek();
-
-        logHandler.enterLog(Process::"Data Sync In", 'Setting getDateLastWeek', '', Format(dateLastWeek));
 
         foreach itemsToken in itemsToken.AsArray() do begin
             itemsToken.SelectToken('Values', valuesToken);
@@ -98,6 +91,7 @@ codeunit 50368 PerfionDataSyncIn
                 itemNum := itemNumToken.AsValue().AsCode();
 
                 if checkItem(itemNum) then begin
+                    currentItem := itemNum;
 
                     hasCore := false;
                     Clear(tempCoreReasource);
@@ -108,6 +102,8 @@ codeunit 50368 PerfionDataSyncIn
                         valuesToken.SelectToken('featureId', featureId);
                         if featureId.AsValue().AsInteger() <> 100 then begin
 
+                            Clear(modifiedDate);
+
                             valuesToken.SelectToken('modifiedDate', itemDateModified);
                             modifiedDate := DT2Date(itemDateModified.AsValue().AsDateTime());
 
@@ -116,31 +112,22 @@ codeunit 50368 PerfionDataSyncIn
 
                             valuesToken.SelectToken('value', itemFeatureValue);
                             valuesToken.SelectToken('featureName', itemFeatureName);
-                            valuesToken.SelectToken('modifiedDate', itemDateModified);
+                            modifiedDateTime := itemDateModified.AsValue().AsDateTime();
 
-                            if modifiedDate > dateLastWeek then begin
-                                if itemFeatureName.AsValue().AsText() = 'PartNameProductDescription' then
-                                    updateItemDescription(itemNum, itemFeatureValue.AsValue().AsText(), itemDateModified.AsValue().AsDateTime())
-                                else if itemFeatureName.AsValue().AsText() = 'SAGroup2' then
-                                    updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), itemDateModified.AsValue().AsDateTime())
-                                else if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
-                                    tempCoreReasource := itemFeatureValue.AsValue().AsCode()
-                                else if itemFeatureName.AsValue().AsText() = 'Core' then begin
-                                    hasCore := true;
-                                    tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
-                                    tempItemDateModified := itemDateModified.AsValue().AsDateTime();
-                                end;
-                            end
-                            else begin
-                                if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
-                                    tempCoreReasource := itemFeatureValue.AsValue().AsCode()
-                                else if itemFeatureName.AsValue().AsText() = 'Core' then begin
-                                    hasCore := true;
-                                    tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
-                                    tempItemDateModified := itemDateModified.AsValue().AsDateTime();
-                                end;
-
+                            if itemFeatureName.AsValue().AsText() = 'PartNameProductDescription' then
+                                updateItemDescription(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'SAGroup2' then
+                                updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
+                                updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
+                                tempCoreReasource := itemFeatureValue.AsValue().AsCode()
+                            else if itemFeatureName.AsValue().AsText() = 'Core' then begin
+                                hasCore := true;
+                                tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
+                                tempItemDateModified := modifiedDateTime;
                             end;
+
                         end;
                     end;
                     if hasCore then
@@ -201,6 +188,26 @@ codeunit 50368 PerfionDataSyncIn
                 end
                 else
                     logHandler.enterLog(Process::"Data Sync In", 'Error Updating Description', itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
+    local procedure updateItemPicture(itemNo: Code[20]; newLocation: Text; modified: DateTime)
+    var
+        recItem: Record Item;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if newLocation <> '' then begin
+                recItem.NeedPicture := false;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, getLocalDateTime(modified));
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture', itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -321,6 +328,7 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('Core');
         features.Add('CoreResourceName');
         features.Add('Category');
+        features.Add('PictureLocation');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -403,18 +411,11 @@ codeunit 50368 PerfionDataSyncIn
 
     local procedure buildItemModifiedClause(): JsonObject
     var
-        jObjValue, jObjValueDetail : JsonObject;
+        jObjValue: JsonObject;
+        jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-        utcToday: DateTime;
-        TypeHelper: Codeunit "Type Helper";
-        utcTodayText, utcLastWeekText : Text;
-        manualDateText, manualLastWeekText : Text;
 
     begin
-        utcToday := TypeHelper.GetCurrUTCDateTime();
-
-        utcTodayText := Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>');
-        utcLastWeekText := Format(getDateLastWeek(), 0, '<Year4>-<Month,2>-<Day,2>');
 
         //NOTE - example format Perfion expects 2024-05-04 00:00:00"
 
@@ -423,40 +424,19 @@ codeunit 50368 PerfionDataSyncIn
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-10 00:00:00');
         //jArrValue.Add('2024-05-10 23:00:00');
-        if useManualDate then begin
-            manualDateText := Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>');
-            manualLastWeekText := Format(getManualDateLastWeek(), 0, '<Year4>-<Month,2>-<Day,2>');
-            jArrValue.Add(manualLastWeekText + ' 00:00:00');
-            jArrValue.Add(manualDateText + ' 23:00:00');
-            logHandler.enterLog(Process::"Data Sync In", 'Setting Clause Date Start', '', manualLastWeekText);
-            logHandler.enterLog(Process::"Data Sync In", 'Setting Clause Date End', '', manualDateText);
-        end
-        else begin
-            jArrValue.Add(utcLastWeekText + ' 00:00:00');
-            jArrValue.Add(utcTodayText + ' 23:00:00');
-            logHandler.enterLog(Process::"Data Sync In", 'Setting Clause Date Start', '', utcLastWeekText);
-            logHandler.enterLog(Process::"Data Sync In", 'Setting Clause Date End', '', utcTodayText);
-        end;
-
+        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
+        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
         jObjValue.Add('value', jArrValue);
-
         exit(jObjValue);
     end;
 
     local procedure buildClauses(featureType: Text): JsonObject
     var
-        jObjValue, jObjValueDetail : JsonObject;
+        jObjValue: JsonObject;
+        jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-        utcToday: DateTime;
-        TypeHelper: Codeunit "Type Helper";
-        utcTodayText, utcLastWeekText : Text;
-        manualDateText, manualLastWeekText : Text;
 
     begin
-        utcToday := TypeHelper.GetCurrUTCDateTime();
-
-        utcTodayText := Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>');
-        utcLastWeekText := Format(getDateLastWeek(), 0, '<Year4>-<Month,2>-<Day,2>');
 
         //NOTE - example format Perfion expects 2024-05-04 00:00:00"
 
@@ -465,26 +445,36 @@ codeunit 50368 PerfionDataSyncIn
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-10 00:00:00');
         //jArrValue.Add('2024-05-10 23:00:00');
-        if useManualDate then begin
-            manualDateText := Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>');
-            manualLastWeekText := Format(getManualDateLastWeek(), 0, '<Year4>-<Month,2>-<Day,2>');
-            jArrValue.Add(manualLastWeekText + ' 00:00:00');
-            jArrValue.Add(manualDateText + ' 23:00:00');
-        end
-        else begin
-            jArrValue.Add(utcLastWeekText + ' 00:00:00');
-            jArrValue.Add(utcTodayText + ' 23:00:00');
-        end;
+        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
+        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
         jObjValue.Add('value', jArrValue);
-
         exit(jObjValue);
+    end;
+
+    local procedure getApiDateFormatText(): Text
+    var
+        utcToday: DateTime;
+        TypeHelper: Codeunit "Type Helper";
+        utcTodayText: Text;
+        manualDateText: Text;
+
+    begin
+        utcToday := TypeHelper.GetCurrUTCDateTime();
+        if useManualDate then
+            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
+        else
+            exit(Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>'));
+
     end;
 
     local procedure getLocalDateTime(utc: DateTime): DateTime
     var
         TypeHelper: Codeunit "Type Helper";
     begin
-        exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
+        if utc <> 0DT then
+            exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
+        else
+            exit(CurrentDateTime);
     end;
 
     local procedure getDateLastWeek(): Date
@@ -518,6 +508,7 @@ codeunit 50368 PerfionDataSyncIn
         changeCount: Integer;
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
+        currentItem: Code[20];
 
     /*
 
@@ -534,7 +525,9 @@ codeunit 50368 PerfionDataSyncIn
             { "id": "PartNameProductDescription" },
             { "id": "SAGroup2" },
             { "id": "CoreResourceName"},
-            { "id": "Core"}
+            { "id": "Core"},
+            { "id": "Category" },
+            { "id": "PictureLocation"}
         ]
       },
         "From": [ 
@@ -544,20 +537,23 @@ codeunit 50368 PerfionDataSyncIn
          "Clauses": [ 
              { "Clause": { "id": "brand", "operator": "=", "value": "Normal" } },
              { "Clause": { "id": "BCItemType", "operator": "IN", "value": [ "Assembly", "Prod. Order", "Purchase" ] } },
-             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-10 00:00:00", "2024-05-10 23:00:00" ] }
+             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }},
+             { "Or": {} },
+             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             },
+            { "Or": {} },
+             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             },
+            { "Or": {} },
+             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             },
+            { "Or": {} },
+             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-10 00:00:00", "2024-05-10 23:00:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-10 00:00:00", "2024-05-10 23:00:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-10 00:00:00", "2024-05-10 23:00:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-10 00:00:00", "2024-05-10 23:00:00" ] }
+             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
              }
+             
          ]
       }
    }
