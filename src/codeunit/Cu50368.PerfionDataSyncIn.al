@@ -201,13 +201,15 @@ codeunit 50368 PerfionDataSyncIn
         recItem.SetFilter("No.", itemNo);
         if recItem.FindFirst() then begin
             if newLocation <> '' then begin
-                recItem.NeedPicture := false;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, getLocalDateTime(modified));
-                    changeCount += 1;
-                end
-                else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture', itemNo, GetLastErrorText());
+                if recItem.NeedPicture <> false then begin
+                    recItem.NeedPicture := false;
+                    if recItem.Modify() then begin
+                        dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, getLocalDateTime(modified));
+                        changeCount += 1;
+                    end
+                    else
+                        logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture', itemNo, GetLastErrorText());
+                end;
             end;
         end;
     end;
