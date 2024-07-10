@@ -67,12 +67,13 @@ codeunit 50368 PerfionDataSyncIn
         modifiedDate: Date;
         recItem: Record Item;
         perfionDataSyncIn: Record PerfionDataSyncIn;
-        hasCore: Boolean;
+        hasCore, hasPicInstructions : Boolean;
         itemNum: Code[20];
         tempCoreReasource: Code[20];
         tempCoreValue: Decimal;
         tempItemDateModified: DateTime;
         modifiedDateTime: DateTime;
+        tempPicInstructions: Text[400];
 
     begin
         changeCount := 0;
@@ -94,8 +95,10 @@ codeunit 50368 PerfionDataSyncIn
                     currentItem := itemNum;
 
                     hasCore := false;
+                    hasPicInstructions := false;
                     Clear(tempCoreReasource);
                     Clear(tempCoreValue);
+                    Clear(tempPicInstructions);
                     //NOTE - Loop through all attributes. The first is the item number (featureId:100)
 
                     foreach valuesToken in valuesToken.AsArray() do begin
@@ -120,6 +123,11 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'PhotographyPickerInstructions' then begin
+                                hasPicInstructions := true;
+                                tempPicInstructions := itemFeatureValue.AsValue().AsText();
+                                tempItemDateModified := modifiedDateTime;
+                            end
                             else if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
                                 tempCoreReasource := itemFeatureValue.AsValue().AsCode()
                             else if itemFeatureName.AsValue().AsText() = 'Core' then begin
@@ -134,6 +142,10 @@ codeunit 50368 PerfionDataSyncIn
                         updateCoreData(itemNum, tempCoreReasource, tempCoreValue, tempItemDateModified)
                     else
                         updateCoreData(itemNum, '', 0, tempItemDateModified);
+                    if hasPicInstructions then
+                        updatePictureInstructions(itemNum, tempPicInstructions, tempItemDateModified)
+                    else
+                        updatePictureInstructions(itemNum, '', tempItemDateModified);
 
                 end;
 
@@ -183,7 +195,7 @@ codeunit 50368 PerfionDataSyncIn
                 oldDescription := recItem.Description;
                 recItem.Description := newDescription;
                 if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newDescription, oldDescription, Enum::PerfionValueType::Description, getLocalDateTime(modified));
+                    dataLogHandler.LogItemUpdate(itemNo, newDescription, oldDescription, Enum::PerfionValueType::Description, modified);
                     changeCount += 1;
                 end
                 else
@@ -204,12 +216,34 @@ codeunit 50368 PerfionDataSyncIn
                 if recItem.NeedPicture <> false then begin
                     recItem.NeedPicture := false;
                     if recItem.Modify() then begin
-                        dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, getLocalDateTime(modified));
+                        dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, modified);
                         changeCount += 1;
                     end
                     else
                         logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture', itemNo, GetLastErrorText());
                 end;
+            end;
+        end;
+    end;
+
+    local procedure updatePictureInstructions(itemNo: Code[20]; newInstructions: Text; modified: DateTime)
+    var
+        recItem: Record Item;
+        oldInstructions: Text;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if recItem.PictureInstructions <> newInstructions then begin
+                oldInstructions := recItem.PictureInstructions;
+                recItem.PictureInstructions := newInstructions;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newInstructions, 200), oldInstructions, Enum::PerfionValueType::PictureInstructions, modified);
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture Instructions', itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -227,7 +261,7 @@ codeunit 50368 PerfionDataSyncIn
                 oldCategory := recItem."Item Category Code";
                 recItem."Item Category Code" := newCategory;
                 if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, getLocalDateTime(modified));
+                    dataLogHandler.LogItemUpdate(itemNo, newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, modified);
                     changeCount += 1;
                 end
                 else
@@ -254,7 +288,7 @@ codeunit 50368 PerfionDataSyncIn
                 recItem."Core Sales Value" := newCoreValue;
 
                 if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, getLocalDateTime(modified));
+                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, modified);
                     changeCount += 1;
                     needSync := true;
                 end
@@ -267,7 +301,7 @@ codeunit 50368 PerfionDataSyncIn
                 recItem."Core Resource Name" := newCoreResource;
 
                 if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreResource), Format(oldCoreResource), Enum::PerfionValueType::CoreResource, getLocalDateTime(modified));
+                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreResource), Format(oldCoreResource), Enum::PerfionValueType::CoreResource, modified);
                     changeCount += 1;
                     needSync := true;
                 end
@@ -331,6 +365,7 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('CoreResourceName');
         features.Add('Category');
         features.Add('PictureLocation');
+        features.Add('PhotographyPickerInstructions');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -529,7 +564,8 @@ codeunit 50368 PerfionDataSyncIn
             { "id": "CoreResourceName"},
             { "id": "Core"},
             { "id": "Category" },
-            { "id": "PictureLocation"}
+            { "id": "PictureLocation"},
+            { "id": "PhotographyPickerInstructions"}
         ]
       },
         "From": [ 
@@ -554,13 +590,15 @@ codeunit 50368 PerfionDataSyncIn
              },
              { "Or": {} },
              { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
              }
              
          ]
       }
    }
 }
-
 
     */
 }

@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.70",
+  "version": "1.0.0.71",
   "brief": "",
   "description": "Integration for syncing between Perfion, BC, and Magento",
   "privacyStatement": "",
@@ -27,7 +27,7 @@
       "id": "0d3ace7e-c245-4364-a3dd-52a0cfbae19b",
       "publisher": "Abilene",
       "name": "Table Extensions",
-      "version": "1.0.2.1"
+      "version": "1.0.2.3"
     },
     {
       "id": "13dd0d55-3340-471c-8cfe-8880a5147313",

@@ -116,7 +116,7 @@ codeunit 50366 PerfionPriceSync
                                 if modifiedDate = 0D then
                                     modifiedDateTimeText := ''
                                 else
-                                    modifiedDateTimeText := format(getLocalDateTime(modifiedDateTime));
+                                    modifiedDateTimeText := format(modifiedDateTime);
 
                                 case priceType of
                                     'RetailPrice':
