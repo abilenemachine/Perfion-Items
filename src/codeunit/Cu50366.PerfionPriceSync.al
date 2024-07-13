@@ -4,10 +4,9 @@ codeunit 50366 PerfionPriceSync
     var
         perfionPriceSync: Record PerfionPriceSync;
     begin
+
         perfionPriceSync.Get();
-        //LOGIC - Update the last sync time
-        perfionPriceSync.LastSync := CreateDateTime(Today, Time);
-        perfionPriceSync.Modify();
+        currentPriceList := perfionPriceSync.SalesPriceList;
 
         //LOGIC - Get the Perfion Token & register variables
         startPerfionRequest();
@@ -73,6 +72,8 @@ codeunit 50366 PerfionPriceSync
         arrDateTime: array[5] of Text;
         arrPriceType: array[5] of Text;
         index: Integer;
+        priceListHeader: Record "Price List Header";
+        priceMgmt: Codeunit "Price List Management";
 
     begin
         changeCount := 0;
@@ -155,9 +156,15 @@ codeunit 50366 PerfionPriceSync
                 end
             end;
         end;
+
+        priceListHeader.Get(currentPriceList);
+        if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
+            logHandler.enterLog(Process::"Price Sync", 'Error Activating Prices', '', GetLastErrorText());
+
         perfionPriceSync.Get();
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
+        perfionPriceSync.LastSync := CreateDateTime(Today, Time);
         perfionPriceSync.Modify();
 
     end;
@@ -189,13 +196,8 @@ codeunit 50366 PerfionPriceSync
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
-        perfionPriceSync: Record PerfionPriceSync;
-        currentPriceList: Code[20];
 
     begin
-        perfionPriceSync.Get();
-        currentPriceList := perfionPriceSync.SalesPriceList;
-
         priceList.Reset();
         priceList.SetRange("Price List Code", currentPriceList);
         priceList.SetFilter("Product No.", itemNo);
@@ -213,31 +215,55 @@ codeunit 50366 PerfionPriceSync
                     logHandler.enterLog(Process::"Price Sync", 'Error Updating Price', itemNo, GetLastErrorText());
             end;
         end
-        else begin
-            priceList.Reset();
-            priceList.Init();
-            priceList."Price List Code" := currentPriceList;
-            priceList."Source Type" := "Price Source Type"::"All Customers";
-            priceList."Source No." := getPriceGroup(priceGroup);
-            priceList."Asset Type" := "Price Asset Type"::Item;
-            priceList."Asset No." := itemNo;
-            priceList."Starting Date" := getPriceListStartDate(currentPriceList);
-            priceList."Unit of Measure Code" := 'EACH';
-            priceList."Amount Type" := "Price Amount Type"::Price;
-            priceList."Price Type" := "Price Type"::Sale;
-            priceList.Status := "Price Status"::Active;
-            priceList."Unit Price" := price;
-            priceList."Source Group" := "Price Source Group"::Customer;
-            priceList."Product No." := itemNo;
-            priceList."Assign-to No." := getPriceGroup(priceGroup);
-
-            if priceList.Insert() then begin
-                priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified);
-                changeCount += 1;
+        else
+            if not insertPrice(itemNo, price, priceGroup, modified, originalPrice) then begin
+                logHandler.enterLog(Process::"Price Sync", 'Error Inserting Price', itemNo, GetLastErrorText());
             end
-            else
-                logHandler.enterLog(Process::"Price Sync", 'Error Adding Price', itemNo, GetLastErrorText());
-        end;
+    end;
+
+    [TryFunction]
+    local procedure insertPrice(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; originalPrice: Decimal)
+    var
+        priceList: Record "Price List Line";
+
+    begin
+        priceList.Reset();
+        priceList.Init();
+        priceList."Price List Code" := currentPriceList;
+        priceList."Assign-to No." := getPriceGroup(priceGroup);
+        priceList."Source No." := getPriceGroup(priceGroup);
+        priceList."Line No." := getNextLineNo();
+
+        priceList."Source Type" := "Price Source Type"::"Customer Price Group";
+        priceList.Status := "Price Status"::Draft;
+        priceList."Source Group" := "Price Source Group"::Customer;
+
+        priceList."Starting Date" := getPriceListStartDate(currentPriceList);
+        priceList."Asset Type" := "Price Asset Type"::Item;
+        priceList."Product No." := itemNo;
+        priceList."Asset No." := itemNo;
+        priceList."Unit of Measure Code" := 'EACH';
+        priceList.Validate("Product No.");
+        priceList."Amount Type" := "Price Amount Type"::Price;
+        priceList."Price Type" := "Price Type"::Sale;
+        priceList."Unit Price" := price;
+
+        if priceList.Insert() then begin
+            priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", modified);
+            changeCount += 1;
+        end
+        else
+            logHandler.enterLog(Process::"Price Sync", 'Error Adding Price', itemNo, GetLastErrorText());
+
+    end;
+
+    procedure getNextLineNo(): Integer
+    var
+        PriceListLine: Record "Price List Line";
+    begin
+        PriceListLine.SetRange("Price List Code", currentPriceList);
+        if PriceListLine.FindLast() then
+            exit(PriceListLine."Line No." + 1);
     end;
 
     local procedure getPriceListStartDate(SalesPriceList: Code[20]): Date
@@ -469,6 +495,7 @@ codeunit 50366 PerfionPriceSync
         priceLogHandler: Codeunit PerfionPriceLogHandler;
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
+        currentPriceList: Code[20];
 
     /*
 
