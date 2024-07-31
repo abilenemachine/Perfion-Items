@@ -115,7 +115,7 @@ codeunit 50366 PerfionPriceSync
                                 modifiedDateTime := itemDateModified.AsValue().AsDateTime();
 
                                 if modifiedDate = 0D then
-                                    modifiedDateTimeText := ''
+                                    modifiedDateTimeText := Format('2023-01-01T00:00:00')
                                 else
                                     modifiedDateTimeText := format(modifiedDateTime);
 

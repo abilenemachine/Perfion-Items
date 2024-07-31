@@ -1,1 +1,1 @@
-﻿{"Added":[],"Modified":[{"Id":50363,"Kind":11,"Name":"PerfionDataSyncOut","Namespace":""}],"Removed":[]}
+﻿{"Added":[],"Modified":[{"Id":50363,"Kind":11,"Name":"PerfionDataSyncOut","Namespace":""},{"Id":50366,"Kind":11,"Name":"PerfionPriceSync","Namespace":""},{"Id":50365,"Kind":11,"Name":"PerfionPriceLogHandler","Namespace":""}],"Removed":[]}

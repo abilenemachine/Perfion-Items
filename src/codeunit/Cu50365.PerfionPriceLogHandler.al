@@ -21,6 +21,7 @@ codeunit 50365 PerfionPriceLogHandler
         PerfionItemLog."Updated Price" := updatedPrice;
         PerfionItemLog."Price Group" := priceGroup;
         PerfionItemLog."Last Modified" := lastModified;
+        PerfionItemLog."Last Updated" := CurrentDateTime;
         StartSession(SessionID, Codeunit::PerfionPriceLogHandler, CompanyName, PerfionItemLog);
     end;
 
