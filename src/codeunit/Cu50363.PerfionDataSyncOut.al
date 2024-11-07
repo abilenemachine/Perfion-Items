@@ -56,6 +56,9 @@ codeunit 50363 PerfionDataSyncOut
 
                 rec."Reference No." := getItemRef(items);
 
+                rec.application := items.application;
+                rec.userNotes := items.userNotes;
+
                 rec.Demand := EH.GetUsageLast12Months(items."No.");
 
                 items.CalcFields("Assembly BOM");

@@ -138,6 +138,15 @@ table 50250 PerfionItems
             MinValue = 0;
         }
 
+        field(30; userNotes; Text[256])
+        {
+            Caption = 'User Notes';
+        }
+        field(31; application; Text[256])
+        {
+            Caption = 'Application';
+        }
+
         /* table 14000555 "LAX DP Procurement Unit" */
         field(50; "Item Class Description"; Text[30])
         {

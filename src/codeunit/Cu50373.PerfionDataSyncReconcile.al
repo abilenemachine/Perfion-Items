@@ -1,16 +1,17 @@
 codeunit 50373 PerfionDataSyncReconcile
 {
     trigger OnRun()
-    var
-        perfionDataReconcile: Record PerfionDataReconcile;
-    begin
-        perfionDataReconcile.Get();
-        //LOGIC - Update the last sync time
-        perfionDataReconcile.LastSync := CreateDateTime(Today, Time);
-        perfionDataReconcile.Modify();
 
-        //LOGIC - Get the Perfion Token & register variables
-        startPerfionRequest();
+    begin
+
+        currDateTime := CurrentDateTime;
+
+        if perfionDataReconcile.Get() then begin
+
+            //LOGIC - Get the Perfion Token & register variables
+            startPerfionRequest();
+        end;
+
 
     end;
 
@@ -257,9 +258,10 @@ codeunit 50373 PerfionDataSyncReconcile
             until recItemCat.Next() = 0;
         end;
 
-        perfionDataReconcile.Get();
         perfionDataReconcile.Processed := changeCount;
         perfionDataReconcile.TotalCount := totalCount;
+        //LOGIC - Update the last sync time
+        perfionDataReconcile.LastSync := currDateTime;
         perfionDataReconcile.Modify();
     end;
 
@@ -391,12 +393,6 @@ codeunit 50373 PerfionDataSyncReconcile
         exit(jObjValue);
     end;
 
-    local procedure getLocalDateTime(utc: DateTime): DateTime
-    var
-        TypeHelper: Codeunit "Type Helper";
-    begin
-        exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
-    end;
 
     var
         logHandler: Codeunit PerfionLogHandler;
@@ -408,6 +404,8 @@ codeunit 50373 PerfionDataSyncReconcile
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
         recItemCatTemp: Record "Item Category" temporary;
+        perfionDataReconcile: Record PerfionDataReconcile;
+        currDateTime: DateTime;
 
     /*
 

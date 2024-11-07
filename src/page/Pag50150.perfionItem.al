@@ -49,12 +49,14 @@ page 50150 perfionItem
                 field(Demand; Rec.Demand) { }
 
                 field(NMFC; Rec.NMFC) { }
-                field("FreightDensity"; Rec."Freight Density") { }
+                field(FreightDensity; Rec."Freight Density") { }
 
-                field("MinQty"; Rec."Minimum Qty") { }
+                field(MinQty; Rec."Minimum Qty") { }
                 field(Oversize; Rec.Oversize) { }
 
-                field("VendorCore"; Rec."Vendor Core") { }
+                field(VendorCore; Rec."Vendor Core") { }
+                field(UserNotes; Rec.userNotes) { }
+                field(Application; Rec.application) { }
 
             }
         }

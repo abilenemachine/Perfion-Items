@@ -1,16 +1,18 @@
 codeunit 50366 PerfionPriceSync
 {
     trigger OnRun()
-    var
-        perfionPriceSync: Record PerfionPriceSync;
+
     begin
 
-        perfionPriceSync.Get();
-        currentPriceList := perfionPriceSync.SalesPriceList;
+        currDateTime := CurrentDateTime;
 
-        //LOGIC - Get the Perfion Token & register variables
-        startPerfionRequest();
+        if perfionPriceSync.Get() then begin
+            currentPriceList := perfionPriceSync.SalesPriceList;
+            changeCount := 0;
 
+            //LOGIC - Get the Perfion Token & register variables
+            startPerfionRequest();
+        end;
     end;
 
     local procedure startPerfionRequest()
@@ -19,10 +21,10 @@ codeunit 50366 PerfionPriceSync
         Content: Text;
         ErrorList: List of [Text];
         ErrorListMsg: Text;
-        perfionConfig: Record PerfionConfig;
+
     begin
-        perfionConfig.Get();
-        manualDate := perfionConfig."Manual Date";
+        if perfionConfig.Get() then
+            manualDate := perfionConfig."Manual Date";
         if manualDate = 0D then
             useManualDate := false
         else
@@ -62,7 +64,7 @@ codeunit 50366 PerfionPriceSync
         featureId: JsonToken;
 
         modifiedDate: Date;
-        perfionPriceSync: Record PerfionPriceSync;
+
         itemNum: Code[20];
         priceType: Text;
         priceAmount: Decimal;
@@ -76,7 +78,7 @@ codeunit 50366 PerfionPriceSync
         priceMgmt: Codeunit "Price List Management";
 
     begin
-        changeCount := 0;
+
         arrPriceType[1] := 'W05Calculated';
         arrPriceType[2] := 'W1Calculated';
         arrPriceType[3] := 'W2Calculated';
@@ -85,6 +87,15 @@ codeunit 50366 PerfionPriceSync
         if responseObject.ReadFrom(response) then begin
             responseObject.SelectToken('Data', dataToken);
             dataToken.SelectToken('totalCount', totalToken);
+
+            if totalToken.AsValue().AsInteger() = 0 then begin
+                perfionPriceSync.Processed := changeCount;
+                perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
+                //LOGIC - Update the last sync time
+                perfionPriceSync.LastSync := currDateTime;
+                perfionPriceSync.Modify();
+            end;
+
             dataToken.SelectToken('Items', itemsToken);
 
             foreach itemsToken in itemsToken.AsArray() do begin
@@ -161,12 +172,11 @@ codeunit 50366 PerfionPriceSync
         if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
             logHandler.enterLog(Process::"Price Sync", 'Error Activating Prices', '', GetLastErrorText());
 
-        perfionPriceSync.Get();
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
-        perfionPriceSync.LastSync := CreateDateTime(Today, Time);
+        //LOGIC - Update the last sync time
+        perfionPriceSync.LastSync := currDateTime;
         perfionPriceSync.Modify();
-
     end;
 
     local procedure checkItem(itemNo: Code[20]): Boolean
@@ -405,7 +415,9 @@ codeunit 50366 PerfionPriceSync
         jObject.Add('Clause', buildItemTypeClause());
         jArray.Add(jObject);
         Clear(jObject);
-        logHandler.enterLog(Process::"Price Sync", 'Setting Clause Date', '', getApiDateFormatText());
+
+        logHandler.enterLog(Process::"Price Sync", 'Clause Date To', '', getApiDateFormatText() + ' ' + getApiTimeFormatText());
+        logHandler.enterLog(Process::"Price Sync", 'Clause Date From', '', Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
 
         foreach feature in features do begin
             jObject.Add('Clause', buildClauses(feature));
@@ -458,33 +470,26 @@ codeunit 50366 PerfionPriceSync
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-01 00:00:00');
         //jArrValue.Add('2024-05-05 23:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
+        jArrValue.Add(Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        jArrValue.Add(getApiDateFormatText() + ' ' + getApiTimeFormatText());
         jObjValue.Add('value', jArrValue);
         exit(jObjValue);
     end;
 
     local procedure getApiDateFormatText(): Text
-    var
-        utcToday: DateTime;
-        TypeHelper: Codeunit "Type Helper";
-        utcTodayText: Text;
-        manualDateText: Text;
-
     begin
-        utcToday := TypeHelper.GetCurrUTCDateTime();
         if useManualDate then
             exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
         else
-            exit(Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>'));
-
+            exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
-    local procedure getLocalDateTime(utc: DateTime): DateTime
-    var
-        TypeHelper: Codeunit "Type Helper";
+    local procedure getApiTimeFormatText(): Text
     begin
-        exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
+        if useManualDate then
+            exit(' 00:00:00')
+        else
+            exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     var
@@ -496,6 +501,9 @@ codeunit 50366 PerfionPriceSync
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
         currentPriceList: Code[20];
+        perfionConfig: Record PerfionConfig;
+        perfionPriceSync: Record PerfionPriceSync;
+        currDateTime: DateTime;
 
     /*
 

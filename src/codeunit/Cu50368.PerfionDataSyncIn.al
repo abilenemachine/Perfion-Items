@@ -1,17 +1,15 @@
 codeunit 50368 PerfionDataSyncIn
 {
     trigger OnRun()
-    var
-        perfionDataSyncIn: Record PerfionDataSyncIn;
+
     begin
-        perfionDataSyncIn.Get();
-        //LOGIC - Update the last sync time
-        perfionDataSyncIn.LastSync := CreateDateTime(Today, Time);
-        perfionDataSyncIn.Modify();
+        currDateTime := CurrentDateTime;
 
-        //LOGIC - Get the Perfion Token & register variables
-        startPerfionRequest();
+        if perfionDataSyncIn.Get() then begin
 
+            //LOGIC - Get the Perfion Token & register variables
+            startPerfionRequest();
+        end;
     end;
 
     local procedure startPerfionRequest()
@@ -66,7 +64,6 @@ codeunit 50368 PerfionDataSyncIn
 
         modifiedDate: Date;
         recItem: Record Item;
-        perfionDataSyncIn: Record PerfionDataSyncIn;
         hasCore, hasPicInstructions : Boolean;
         itemNum: Code[20];
         tempCoreReasource: Code[20];
@@ -80,6 +77,15 @@ codeunit 50368 PerfionDataSyncIn
         responseObject.ReadFrom(response);
         responseObject.SelectToken('Data', dataToken);
         dataToken.SelectToken('totalCount', totalToken);
+
+        if totalToken.AsValue().AsInteger() = 0 then begin
+            perfionDataSyncIn.Processed := changeCount;
+            perfionDataSyncIn.TotalCount := totalToken.AsValue().AsInteger();
+            //LOGIC - Update the last sync time
+            perfionDataSyncIn.LastSync := currDateTime;
+            perfionDataSyncIn.Modify();
+        end;
+
         dataToken.SelectToken('Items', itemsToken);
 
         foreach itemsToken in itemsToken.AsArray() do begin
@@ -123,6 +129,10 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then
+                                updateItemUserNotes(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'BCApplications' then
+                                updateItemApplications(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'PhotographyPickerInstructions' then begin
                                 hasPicInstructions := true;
                                 tempPicInstructions := itemFeatureValue.AsValue().AsText();
@@ -150,9 +160,11 @@ codeunit 50368 PerfionDataSyncIn
                 end;
 
             end;
-            perfionDataSyncIn.Get();
+
             perfionDataSyncIn.Processed := changeCount;
             perfionDataSyncIn.TotalCount := totalToken.AsValue().AsInteger();
+            //LOGIC - Update the last sync time
+            perfionDataSyncIn.LastSync := currDateTime;
             perfionDataSyncIn.Modify();
 
         end;
@@ -200,6 +212,50 @@ codeunit 50368 PerfionDataSyncIn
                 end
                 else
                     logHandler.enterLog(Process::"Data Sync In", 'Error Updating Description', itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
+    local procedure updateItemUserNotes(itemNo: Code[20]; newUserNotes: Text; modified: DateTime)
+    var
+        oldUserNotes: Text;
+        recItem: Record Item;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if recItem.userNotes <> newUserNotes then begin
+                oldUserNotes := recItem.userNotes;
+                recItem.userNotes := newUserNotes;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newUserNotes, oldUserNotes, Enum::PerfionValueType::UserNotes, modified);
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating UserNotes', itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
+    local procedure updateItemApplications(itemNo: Code[20]; newApplications: Text; modified: DateTime)
+    var
+        oldApplications: Text;
+        recItem: Record Item;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if recItem.userNotes <> newApplications then begin
+                oldApplications := recItem.userNotes;
+                recItem.userNotes := newApplications;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newApplications, oldApplications, Enum::PerfionValueType::Applications, modified);
+                    changeCount += 1;
+                end
+                else
+                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Applications', itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -366,6 +422,8 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('Category');
         features.Add('PictureLocation');
         features.Add('PhotographyPickerInstructions');
+        features.Add('BCUserNotes');
+        features.Add('BCApplications');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -405,17 +463,23 @@ codeunit 50368 PerfionDataSyncIn
         jArray.Add(jObject);
         Clear(jObject);
         jObject.Add('Clause', buildItemModifiedClause());
-        jObject.Add('Or', jObjectEmpty);
         jArray.Add(jObject);
-        Clear(jObject);
 
-        foreach feature in features do begin
-            jObject.Add('Clause', buildClauses(feature));
-            jObject.Add('Or', jObjectEmpty);
-            jArray.Add(jObject);
-            Clear(jObject);
-        end;
+        logHandler.enterLog(Process::"Data Sync In", 'Clause Date To', '', getApiDateFormatText() + ' ' + getApiTimeFormatText());
+        logHandler.enterLog(Process::"Data Sync In", 'Clause Date From', '', Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
 
+        /*
+jObject.Add('Or', jObjectEmpty);
+jArray.Add(jObject);
+
+Clear(jObject);
+foreach feature in features do begin
+    jObject.Add('Clause', buildClauses(feature));
+    jObject.Add('Or', jObjectEmpty);
+    jArray.Add(jObject);
+    Clear(jObject);
+end;
+*/
         exit(jArray);
     end;
 
@@ -461,8 +525,8 @@ codeunit 50368 PerfionDataSyncIn
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-10 00:00:00');
         //jArrValue.Add('2024-05-10 23:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
+        jArrValue.Add(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        jArrValue.Add(getApiDateFormatText() + ' ' + getApiTimeFormatText());
         jObjValue.Add('value', jArrValue);
         exit(jObjValue);
     end;
@@ -489,53 +553,20 @@ codeunit 50368 PerfionDataSyncIn
     end;
 
     local procedure getApiDateFormatText(): Text
-    var
-        utcToday: DateTime;
-        TypeHelper: Codeunit "Type Helper";
-        utcTodayText: Text;
-        manualDateText: Text;
-
     begin
-        utcToday := TypeHelper.GetCurrUTCDateTime();
         if useManualDate then
             exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
         else
-            exit(Format(utcToday, 0, '<Year4>-<Month,2>-<Day,2>'));
-
+            exit(Format(CurrentDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
-    local procedure getLocalDateTime(utc: DateTime): DateTime
-    var
-        TypeHelper: Codeunit "Type Helper";
+    local procedure getApiTimeFormatText(): Text
     begin
-        if utc <> 0DT then
-            exit(TypeHelper.ConvertDateTimeFromUTCToTimeZone(utc, 'Central Standard Time'))
+        if useManualDate then
+            exit(' 00:00:00')
         else
-            exit(CurrentDateTime);
+            exit(Format(CurrentDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
-
-    local procedure getDateLastWeek(): Date
-    begin
-
-        exit(CalcDate('<-7D>', Today))
-    end;
-
-    local procedure getCompareDateLastWeek(): Date
-    begin
-
-        exit(CalcDate('<-8D>', Today))
-    end;
-
-    local procedure getManualDateLastWeek(): Date
-    begin
-        exit(CalcDate('<-7D>', manualDate))
-    end;
-
-    local procedure getManualCompareDateLastWeek(): Date
-    begin
-        exit(CalcDate('<-8D>', manualDate))
-    end;
-
 
     var
         useManualDate: Boolean;
@@ -546,6 +577,8 @@ codeunit 50368 PerfionDataSyncIn
         Process: Enum PerfionProcess;
         apiHandler: Codeunit PerfionApiHandler;
         currentItem: Code[20];
+        perfionDataSyncIn: Record PerfionDataSyncIn;
+        currDateTime: DateTime;
 
     /*
 
