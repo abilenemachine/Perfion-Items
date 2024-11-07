@@ -19,11 +19,10 @@ codeunit 50368 PerfionDataSyncIn
         ErrorList: List of [Text];
         ErrorListMsg: Text;
         ErrorMsg: Text;
-        perfionConfig: Record PerfionConfig;
 
     begin
-        perfionConfig.Get();
-        manualDate := perfionConfig."Manual Date";
+        if perfionConfig.Get() then
+            manualDate := perfionConfig."Manual Date";
         if manualDate = 0D then
             useManualDate := false
         else
@@ -166,6 +165,9 @@ codeunit 50368 PerfionDataSyncIn
             //LOGIC - Update the last sync time
             perfionDataSyncIn.LastSync := currDateTime;
             perfionDataSyncIn.Modify();
+
+            Clear(perfionConfig."Manual Date");
+            perfionConfig.Modify();
 
         end;
     end;
@@ -385,6 +387,7 @@ codeunit 50368 PerfionDataSyncIn
         //LOGIC - Build the Select Query
         //NOTE - Build the select object
         jObjSelect.Add('languages', 'EN');
+        jObjSelect.Add('timezone', 'Eastern Standard Time');
         jObjSelect.Add('options', 'IncludeTotalCount,ExcludeFeatureDefinitions');
 
         //NOTE - Add features (attributes) needed from Perfion. This is done in buildFeatures()
@@ -465,8 +468,8 @@ codeunit 50368 PerfionDataSyncIn
         jObject.Add('Clause', buildItemModifiedClause());
         jArray.Add(jObject);
 
-        logHandler.enterLog(Process::"Data Sync In", 'Clause Date To', '', getApiDateFormatText() + ' ' + getApiTimeFormatText());
-        logHandler.enterLog(Process::"Data Sync In", 'Clause Date From', '', Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        logHandler.enterLog(Process::"Data Sync In", 'Clause Date To', '', getToDateText() + ' ' + getToTimeText());
+        logHandler.enterLog(Process::"Data Sync In", 'Clause Date From', '', getFromDateText() + ' ' + getFromTimeText());
 
         /*
 jObject.Add('Or', jObjectEmpty);
@@ -525,47 +528,42 @@ end;
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-10 00:00:00');
         //jArrValue.Add('2024-05-10 23:00:00');
-        jArrValue.Add(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
-        jArrValue.Add(getApiDateFormatText() + ' ' + getApiTimeFormatText());
+        jArrValue.Add(getFromDateText() + ' ' + getFromTimeText());
+        jArrValue.Add(getToDateText() + ' ' + getToTimeText());
         jObjValue.Add('value', jArrValue);
         exit(jObjValue);
     end;
 
-    local procedure buildClauses(featureType: Text): JsonObject
-    var
-        jObjValue: JsonObject;
-        jObjValueDetail: JsonObject;
-        jArrValue: JsonArray;
-
-    begin
-
-        //NOTE - example format Perfion expects 2024-05-04 00:00:00"
-
-        jObjValue.Add('id', featureType + '.modifiedDate');
-        jObjValue.Add('operator', 'BETWEEN');
-        //DEVELOPER - Testing Only
-        //jArrValue.Add('2024-05-10 00:00:00');
-        //jArrValue.Add('2024-05-10 23:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 00:00:00');
-        jArrValue.Add(getApiDateFormatText() + ' 23:00:00');
-        jObjValue.Add('value', jArrValue);
-        exit(jObjValue);
-    end;
-
-    local procedure getApiDateFormatText(): Text
+    local procedure getFromDateText(): Text
     begin
         if useManualDate then
             exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
         else
-            exit(Format(CurrentDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
+            exit(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
-    local procedure getApiTimeFormatText(): Text
+    local procedure getFromTimeText(): Text
     begin
         if useManualDate then
             exit(' 00:00:00')
         else
-            exit(Format(CurrentDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+            exit(Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+    end;
+
+    local procedure getToDateText(): Text
+    begin
+        if useManualDate then
+            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
+        else
+            exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
+    end;
+
+    local procedure getToTimeText(): Text
+    begin
+        if useManualDate then
+            exit(' 23:59:00')
+        else
+            exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     var
@@ -579,6 +577,7 @@ end;
         currentItem: Code[20];
         perfionDataSyncIn: Record PerfionDataSyncIn;
         currDateTime: DateTime;
+        perfionConfig: Record PerfionConfig;
 
     /*
 

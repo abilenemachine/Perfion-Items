@@ -177,6 +177,9 @@ codeunit 50366 PerfionPriceSync
         //LOGIC - Update the last sync time
         perfionPriceSync.LastSync := currDateTime;
         perfionPriceSync.Modify();
+
+        Clear(perfionConfig."Manual Date");
+        perfionConfig.Modify();
     end;
 
     local procedure checkItem(itemNo: Code[20]): Boolean
@@ -324,6 +327,7 @@ codeunit 50366 PerfionPriceSync
         //LOGIC - Build the Select Query
         //NOTE - Build the select object
         jObjSelect.Add('languages', 'EN');
+        jObjSelect.Add('timezone', 'Eastern Standard Time');
         jObjSelect.Add('options', 'IncludeTotalCount,ExcludeFeatureDefinitions');
 
         //NOTE - Add features (attributes) needed from Perfion. This is done in buildFeatures()
@@ -416,8 +420,8 @@ codeunit 50366 PerfionPriceSync
         jArray.Add(jObject);
         Clear(jObject);
 
-        logHandler.enterLog(Process::"Price Sync", 'Clause Date To', '', getApiDateFormatText() + ' ' + getApiTimeFormatText());
-        logHandler.enterLog(Process::"Price Sync", 'Clause Date From', '', Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        logHandler.enterLog(Process::"Price Sync", 'Clause Date To', '', getToDateText() + ' ' + getToTimeText());
+        logHandler.enterLog(Process::"Price Sync", 'Clause Date From', '', getFromDateText() + ' ' + getFromTimeText());
 
         foreach feature in features do begin
             jObject.Add('Clause', buildClauses(feature));
@@ -470,13 +474,29 @@ codeunit 50366 PerfionPriceSync
         //DEVELOPER - Testing Only
         //jArrValue.Add('2024-05-01 00:00:00');
         //jArrValue.Add('2024-05-05 23:00:00');
-        jArrValue.Add(Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>') + ' ' + Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
-        jArrValue.Add(getApiDateFormatText() + ' ' + getApiTimeFormatText());
+        jArrValue.Add(getFromDateText() + ' ' + getFromTimeText());
+        jArrValue.Add(getToDateText() + ' ' + getToTimeText());
         jObjValue.Add('value', jArrValue);
         exit(jObjValue);
     end;
 
-    local procedure getApiDateFormatText(): Text
+    local procedure getFromDateText(): Text
+    begin
+        if useManualDate then
+            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
+        else
+            exit(Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
+    end;
+
+    local procedure getFromTimeText(): Text
+    begin
+        if useManualDate then
+            exit(' 00:00:00')
+        else
+            exit(Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+    end;
+
+    local procedure getToDateText(): Text
     begin
         if useManualDate then
             exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
@@ -484,10 +504,10 @@ codeunit 50366 PerfionPriceSync
             exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
-    local procedure getApiTimeFormatText(): Text
+    local procedure getToTimeText(): Text
     begin
         if useManualDate then
-            exit(' 00:00:00')
+            exit(' 23:59:00')
         else
             exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;

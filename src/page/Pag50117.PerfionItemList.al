@@ -57,6 +57,9 @@ page 50117 PerfionItemList
                 field("Quantity SC"; Rec."Quantity SC") { }
                 field("Quantity SD"; Rec."Quantity SD") { }
                 field("Quantity MT"; Rec."Quantity MT") { }
+                field(userNotes; Rec.userNotes) { }
+                field(application; Rec.application) { }
+
 
 
             }
