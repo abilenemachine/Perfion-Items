@@ -21,6 +21,11 @@ page 50151 PerfionConfig
                     {
 
                     }
+
+                    field(fullSync; Rec.fullSync)
+                    {
+
+                    }
                 }
             }
 

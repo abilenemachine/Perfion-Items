@@ -5,10 +5,24 @@ codeunit 50368 PerfionDataSyncIn
     begin
         currDateTime := CurrentDateTime;
 
+        if perfionConfig.Get() then
+            manualDate := perfionConfig."Manual Date";
+        if manualDate = 0D then
+            useManualDate := false
+        else
+            useManualDate := true;
+
+        if (Format(DT2Time(CurrentDateTime)) > ('11:00:00 PM')) or perfionConfig.fullSync then
+            fullSync := true
+        else
+            fullSync := false;
+
         if perfionDataSyncIn.Get() then begin
 
             //LOGIC - Get the Perfion Token & register variables
             startPerfionRequest();
+
+
         end;
     end;
 
@@ -21,23 +35,18 @@ codeunit 50368 PerfionDataSyncIn
         ErrorMsg: Text;
 
     begin
-        if perfionConfig.Get() then
-            manualDate := perfionConfig."Manual Date";
-        if manualDate = 0D then
-            useManualDate := false
-        else
-            useManualDate := true;
+
 
         Content := GenerateQueryContent();
 
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::"Data Sync In", 'perfionPostRequest', '', GetLastErrorText());
+            logHandler.enterLog(Process::"Data Sync In", LogKey::Post, '', GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::"Data Sync In", 'perfionPostRequest', '', ErrorListMsg);
+                logHandler.enterLog(Process::"Data Sync In", LogKey::Post, '', ErrorListMsg);
             end;
             exit;
         end;
@@ -167,6 +176,7 @@ codeunit 50368 PerfionDataSyncIn
             perfionDataSyncIn.Modify();
 
             Clear(perfionConfig."Manual Date");
+            perfionConfig.fullSync := false;
             perfionConfig.Modify();
 
         end;
@@ -178,17 +188,17 @@ codeunit 50368 PerfionDataSyncIn
 
     begin
         if Text.StrLen(itemNo) > 20 then begin
-            logHandler.enterLog(Process::"Data Sync In", 'checkItem', itemNo, 'Item Num too long');
+            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item Num too long');
             exit(false);
         end;
         recItem.Reset();
 
         if not recItem.Get(itemNo) then begin
-            logHandler.enterLog(Process::"Data Sync In", 'checkItem', itemNo, 'Item not in BC');
+            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item not in BC');
             exit(false);
         end
         else if recItem.Blocked then begin
-            logHandler.enterLog(Process::"Data Sync In", 'checkItem', itemNo, 'Item Blocked in BC');
+            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item Blocked in BC');
             exit(false);
         end
         else
@@ -213,7 +223,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Description', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::Description, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -235,7 +245,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating UserNotes', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::UserNotes, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -257,7 +267,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Applications', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::Application, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -278,7 +288,7 @@ codeunit 50368 PerfionDataSyncIn
                         changeCount += 1;
                     end
                     else
-                        logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture', itemNo, GetLastErrorText());
+                        logHandler.enterLog(Process::"Data Sync In", LogKey::Picture, itemNo, GetLastErrorText());
                 end;
             end;
         end;
@@ -301,7 +311,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Picture Instructions', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::PicInstructions, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -323,7 +333,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Item Category', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::Category, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -351,7 +361,7 @@ codeunit 50368 PerfionDataSyncIn
                     needSync := true;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Core Value', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::CoreValue, itemNo, GetLastErrorText());
             end;
 
             if recItem."Core Resource Name" <> newCoreResource then begin
@@ -364,7 +374,7 @@ codeunit 50368 PerfionDataSyncIn
                     needSync := true;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", 'Error Updating Core Resource', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Data Sync In", LogKey::CoreResource, itemNo, GetLastErrorText());
             end;
 
             if needSync then
@@ -464,25 +474,27 @@ codeunit 50368 PerfionDataSyncIn
         Clear(jObject);
         jObject.Add('Clause', buildItemTypeClause());
         jArray.Add(jObject);
-        Clear(jObject);
-        jObject.Add('Clause', buildItemModifiedClause());
-        jArray.Add(jObject);
 
-        logHandler.enterLog(Process::"Data Sync In", 'Clause Date To', '', getToDateText() + ' ' + getToTimeText());
-        logHandler.enterLog(Process::"Data Sync In", 'Clause Date From', '', getFromDateText() + ' ' + getFromTimeText());
+        if not fullSync then begin
+            Clear(jObject);
+            jObject.Add('Clause', buildItemModifiedClause());
+            jArray.Add(jObject);
 
-        /*
-jObject.Add('Or', jObjectEmpty);
-jArray.Add(jObject);
+            logHandler.enterLog(Process::"Data Sync In", LogKey::DateTo, '', getToDateText() + ' ' + getToTimeText());
+            logHandler.enterLog(Process::"Data Sync In", LogKey::DateFrom, '', getFromDateText() + ' ' + getFromTimeText());
 
-Clear(jObject);
-foreach feature in features do begin
-    jObject.Add('Clause', buildClauses(feature));
-    jObject.Add('Or', jObjectEmpty);
-    jArray.Add(jObject);
-    Clear(jObject);
-end;
-*/
+            jObject.Add('Or', jObjectEmpty);
+            jArray.Add(jObject);
+
+            Clear(jObject);
+            foreach feature in features do begin
+                jObject.Add('Clause', buildClauses(feature));
+                jObject.Add('Or', jObjectEmpty);
+                jArray.Add(jObject);
+                Clear(jObject);
+            end;
+        end;
+
         exit(jArray);
     end;
 
@@ -509,6 +521,27 @@ end;
         jArrValue.Add('Assembly');
         jArrValue.Add('Prod. Order');
         jArrValue.Add('Purchase');
+        jObjValue.Add('value', jArrValue);
+        exit(jObjValue);
+    end;
+
+    local procedure buildClauses(featureType: Text): JsonObject
+    var
+        jObjValue: JsonObject;
+        jObjValueDetail: JsonObject;
+        jArrValue: JsonArray;
+
+    begin
+
+        //NOTE - example format Perfion expects 2024-05-04 00:00:00"
+
+        jObjValue.Add('id', featureType + '.modifiedDate');
+        jObjValue.Add('operator', 'BETWEEN');
+        //DEVELOPER - Testing Only
+        //jArrValue.Add('2024-05-10 00:00:00');
+        //jArrValue.Add('2024-05-10 23:00:00');
+        jArrValue.Add(getFromDateText() + ' ' + getFromTimeText());
+        jArrValue.Add(getToDateText() + ' ' + getToTimeText());
         jObjValue.Add('value', jArrValue);
         exit(jObjValue);
     end;
@@ -568,11 +601,13 @@ end;
 
     var
         useManualDate: Boolean;
+        fullSync: Boolean;
         manualDate: Date;
         logHandler: Codeunit PerfionLogHandler;
         dataLogHandler: Codeunit PerfionDataInLogHandler;
         changeCount: Integer;
         Process: Enum PerfionProcess;
+        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         currentItem: Code[20];
         perfionDataSyncIn: Record PerfionDataSyncIn;

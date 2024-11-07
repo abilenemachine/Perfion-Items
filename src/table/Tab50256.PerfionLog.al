@@ -15,7 +15,7 @@ table 50256 PerfionLog
         field(3; "Item No."; Code[20])
         {
         }
-        field(7; "Key"; Text[200])
+        field(7; "Key"; Enum PerfionLogKey)
         {
             DataClassification = CustomerContent;
         }

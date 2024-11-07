@@ -33,13 +33,13 @@ codeunit 50373 PerfionDataSyncReconcile
     begin
         Content := genQueryItemCat();
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::Reconcile, 'perfionPostRequest', '', GetLastErrorText());
+            logHandler.enterLog(Process::Reconcile, LogKey::Post, '', GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::Reconcile, 'perfionPostRequest', '', ErrorListMsg);
+                logHandler.enterLog(Process::Reconcile, LogKey::Post, '', ErrorListMsg);
             end;
             exit;
         end;
@@ -402,6 +402,7 @@ codeunit 50373 PerfionDataSyncReconcile
         ReconcileType: Enum PerfionReconcileType;
         ValueType: Enum PerfionValueType;
         Process: Enum PerfionProcess;
+        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         recItemCatTemp: Record "Item Category" temporary;
         perfionDataReconcile: Record PerfionDataReconcile;

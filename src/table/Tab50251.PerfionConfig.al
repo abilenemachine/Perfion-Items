@@ -19,8 +19,9 @@ table 50251 PerfionConfig
         {
 
         }
-        field(4; "Enabled"; Boolean)
+        field(4; "fullSync"; Boolean)
         {
+            InitValue = false;
         }
     }
     keys

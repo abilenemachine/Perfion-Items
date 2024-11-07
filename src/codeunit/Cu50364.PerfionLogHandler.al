@@ -7,7 +7,7 @@ codeunit 50364 PerfionLogHandler
         Rec.Insert();
     end;
 
-    procedure enterLog(Process: Enum PerfionProcess; ProcessKey: Text[200]; ItemNo: Code[20]; ErrorMsg: Text[250])
+    procedure enterLog(Process: Enum PerfionProcess; ProcessKey: Enum PerfionLogKey; ItemNo: Code[20]; ErrorMsg: Text[250])
     var
         perfionLog: Record PerfionLog;
     begin

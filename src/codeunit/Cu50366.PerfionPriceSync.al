@@ -33,13 +33,13 @@ codeunit 50366 PerfionPriceSync
         Content := GenerateQueryContent();
 
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::"Price Sync", 'perfionPostRequest', '', GetLastErrorText());
+            logHandler.enterLog(Process::"Price Sync", LogKey::Post, '', GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::"Price Sync", 'perfionPostRequest', '', ErrorListMsg);
+                logHandler.enterLog(Process::"Price Sync", LogKey::Post, '', ErrorListMsg);
             end;
             exit;
         end;
@@ -170,7 +170,7 @@ codeunit 50366 PerfionPriceSync
 
         priceListHeader.Get(currentPriceList);
         if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
-            logHandler.enterLog(Process::"Price Sync", 'Error Activating Prices', '', GetLastErrorText());
+            logHandler.enterLog(Process::"Price Sync", LogKey::Activation, '', GetLastErrorText());
 
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
@@ -188,17 +188,17 @@ codeunit 50366 PerfionPriceSync
 
     begin
         if Text.StrLen(itemNo) > 20 then begin
-            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item Num too long');
+            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item Num too long');
             exit(false);
         end;
         recItem.Reset();
 
         if not recItem.Get(itemNo) then begin
-            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item not in BC');
+            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item not in BC');
             exit(false);
         end
         else if recItem.Blocked then begin
-            logHandler.enterLog(Process::"Price Sync", 'checkItem', itemNo, 'Item Blocked in BC');
+            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item Blocked in BC');
             exit(false);
         end
         else
@@ -225,12 +225,12 @@ codeunit 50366 PerfionPriceSync
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Price Sync", 'Error Updating Price', itemNo, GetLastErrorText());
+                    logHandler.enterLog(Process::"Price Sync", LogKey::PriceUpdate, itemNo, GetLastErrorText());
             end;
         end
         else
             if not insertPrice(itemNo, price, priceGroup, modified, originalPrice) then begin
-                logHandler.enterLog(Process::"Price Sync", 'Error Inserting Price', itemNo, GetLastErrorText());
+                logHandler.enterLog(Process::"Price Sync", LogKey::PriceInsert, itemNo, GetLastErrorText());
             end
     end;
 
@@ -266,7 +266,7 @@ codeunit 50366 PerfionPriceSync
             changeCount += 1;
         end
         else
-            logHandler.enterLog(Process::"Price Sync", 'Error Adding Price', itemNo, GetLastErrorText());
+            logHandler.enterLog(Process::"Price Sync", LogKey::PriceInsert, itemNo, GetLastErrorText());
 
     end;
 
@@ -420,8 +420,8 @@ codeunit 50366 PerfionPriceSync
         jArray.Add(jObject);
         Clear(jObject);
 
-        logHandler.enterLog(Process::"Price Sync", 'Clause Date To', '', getToDateText() + ' ' + getToTimeText());
-        logHandler.enterLog(Process::"Price Sync", 'Clause Date From', '', getFromDateText() + ' ' + getFromTimeText());
+        logHandler.enterLog(Process::"Price Sync", LogKey::DateTo, '', getToDateText() + ' ' + getToTimeText());
+        logHandler.enterLog(Process::"Price Sync", LogKey::DateFrom, '', getFromDateText() + ' ' + getFromTimeText());
 
         foreach feature in features do begin
             jObject.Add('Clause', buildClauses(feature));
@@ -519,6 +519,7 @@ codeunit 50366 PerfionPriceSync
         logHandler: Codeunit PerfionLogHandler;
         priceLogHandler: Codeunit PerfionPriceLogHandler;
         Process: Enum PerfionProcess;
+        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         currentPriceList: Code[20];
         perfionConfig: Record PerfionConfig;

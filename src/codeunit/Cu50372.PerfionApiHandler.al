@@ -46,13 +46,13 @@ codeunit 50372 PerfionApiHandler
         baseUrl := 'https://abilene-api.perfioncloud.com/data';
 
         if not getToken(Response, ErrorList) then begin
-            errorHandler.enterLog(Process::"API Handler", 'getToken', '', GetLastErrorText());
+            errorHandler.enterLog(Process::"API Handler", LogKey::Token, '', GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                errorHandler.enterLog(Process::"API Handler", 'getToken', '', ErrorListMsg);
+                errorHandler.enterLog(Process::"API Handler", LogKey::Token, '', ErrorListMsg);
             end;
             exit;
         end;
@@ -110,5 +110,6 @@ codeunit 50372 PerfionApiHandler
         baseUrl: Text;
         errorHandler: Codeunit PerfionLogHandler;
         Process: Enum PerfionProcess;
+        LogKey: Enum PerfionLogKey;
 
 }
