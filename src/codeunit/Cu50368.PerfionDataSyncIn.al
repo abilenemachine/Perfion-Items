@@ -72,11 +72,13 @@ codeunit 50368 PerfionDataSyncIn
 
         modifiedDate: Date;
         recItem: Record Item;
-        hasCore, hasPicInstructions : Boolean;
+        hasCore, hasPicInstructions, hasApplications, hasUserNotes : Boolean;
         itemNum: Code[20];
         tempCoreReasource: Code[20];
         tempCoreValue: Decimal;
         tempItemDateModified: DateTime;
+        tempApplications: Text[256];
+        tempUserNotes: Text[256];
         modifiedDateTime: DateTime;
         tempPicInstructions: Text[400];
 
@@ -110,9 +112,13 @@ codeunit 50368 PerfionDataSyncIn
 
                     hasCore := false;
                     hasPicInstructions := false;
+                    hasUserNotes := false;
+                    hasApplications := false;
                     Clear(tempCoreReasource);
                     Clear(tempCoreValue);
                     Clear(tempPicInstructions);
+                    Clear(tempApplications);
+                    Clear(tempUserNotes);
                     //NOTE - Loop through all attributes. The first is the item number (featureId:100)
 
                     foreach valuesToken in valuesToken.AsArray() do begin
@@ -137,10 +143,16 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then
-                                updateItemUserNotes(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'BCApplications' then
-                                updateItemApplications(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then begin
+                                hasUserNotes := true;
+                                tempUserNotes := itemFeatureValue.AsValue().AsText();
+                                tempItemDateModified := modifiedDateTime;
+                            end
+                            else if itemFeatureName.AsValue().AsText() = 'BCApplications' then begin
+                                hasApplications := true;
+                                tempApplications := itemFeatureValue.AsValue().AsText();
+                                tempItemDateModified := modifiedDateTime;
+                            end
                             else if itemFeatureName.AsValue().AsText() = 'PhotographyPickerInstructions' then begin
                                 hasPicInstructions := true;
                                 tempPicInstructions := itemFeatureValue.AsValue().AsText();
@@ -164,6 +176,14 @@ codeunit 50368 PerfionDataSyncIn
                         updatePictureInstructions(itemNum, tempPicInstructions, tempItemDateModified)
                     else
                         updatePictureInstructions(itemNum, '', tempItemDateModified);
+                    if hasUserNotes then
+                        updateItemUserNotes(itemNum, tempUserNotes, modifiedDateTime)
+                    else
+                        updateItemUserNotes(itemNum, '', modifiedDateTime);
+                    if hasApplications then
+                        updateItemApplications(itemNum, tempApplications, modifiedDateTime)
+                    else
+                        updateItemApplications(itemNum, '', modifiedDateTime)
 
                 end;
 
