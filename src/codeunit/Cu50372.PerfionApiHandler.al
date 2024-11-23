@@ -10,7 +10,7 @@ codeunit 50372 PerfionApiHandler
     var
         Client: HttpClient;
         RequestContent: HttpContent;
-        ResponseMessage: HttpResponseMessage;
+        response: HttpResponseMessage;
         ContentHeaders: HttpHeaders;
         AuthorizationValue: Text;
         token: Text;
@@ -24,13 +24,17 @@ codeunit 50372 PerfionApiHandler
             ContentHeaders.Remove('Content-Type');
             ContentHeaders.Add('Content-Type', 'application/json');
 
-            if not Client.Post(baseUrl, RequestContent, ResponseMessage) then begin
+            logApi.LogApiRequest(baseUrl, Content, Enum::ApiRequestType::Post, Enum::AppCode::Perfion);
+
+            if not Client.Post(baseUrl, RequestContent, response) then begin
                 ErrorList.Add(GetLastErrorText());
                 exit;
             end;
 
-            RequestErrorHandler(ResponseMessage, ErrorList);
-            ResponseMessage.Content.ReadAs(CallResponse);
+            logApi.LogApiResponse(baseUrl, response, CallResponse, Enum::AppCode::Perfion);
+
+            RequestErrorHandler(response, ErrorList);
+            response.Content.ReadAs(CallResponse);
         end;
     end;
 
@@ -111,5 +115,6 @@ codeunit 50372 PerfionApiHandler
         errorHandler: Codeunit PerfionLogHandler;
         Process: Enum PerfionProcess;
         LogKey: Enum PerfionLogKey;
+        logApi: Codeunit LogApiRequests;
 
 }

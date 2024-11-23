@@ -3,26 +3,20 @@ codeunit 50368 PerfionDataSyncIn
     trigger OnRun()
 
     begin
+        //NOTE - currDateTime is always in EST Time because it is based on my time zone
         currDateTime := CurrentDateTime;
 
-        if perfionConfig.Get() then
-            manualDate := perfionConfig."Manual Date";
-        if manualDate = 0D then
-            useManualDate := false
-        else
-            useManualDate := true;
-
-        if (Format(DT2Time(CurrentDateTime)) > ('11:00:00 PM')) or perfionConfig.fullSync then
+        //LOGIC - For the last sync of the day, run a full sync with no date filters
+        if (Format(DT2Time(CurrentDateTime)) > ('6:00:00 PM')) or perfionConfig.fullSync then
             fullSync := true
         else
             fullSync := false;
 
         if perfionDataSyncIn.Get() then begin
+            changeCount := 0;
 
             //LOGIC - Get the Perfion Token & register variables
             startPerfionRequest();
-
-
         end;
     end;
 
@@ -40,13 +34,13 @@ codeunit 50368 PerfionDataSyncIn
         Content := GenerateQueryContent();
 
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::"Data Sync In", LogKey::Post, '', GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'startPerfionRequest', Enum::ErrorType::Catch, GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::"Data Sync In", LogKey::Post, '', ErrorListMsg);
+                logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'startPerfionRequest', Enum::ErrorType::Crash, ErrorListMsg);
             end;
             exit;
         end;
@@ -74,7 +68,7 @@ codeunit 50368 PerfionDataSyncIn
         recItem: Record Item;
         hasCore, hasPicInstructions, hasApplications, hasUserNotes : Boolean;
         itemNum: Code[20];
-        tempCoreReasource: Code[20];
+        tempCoreResource: Code[20];
         tempCoreValue: Decimal;
         tempItemDateModified: DateTime;
         tempApplications: Text[256];
@@ -83,7 +77,7 @@ codeunit 50368 PerfionDataSyncIn
         tempPicInstructions: Text[400];
 
     begin
-        changeCount := 0;
+
         responseObject.ReadFrom(response);
         responseObject.SelectToken('Data', dataToken);
         dataToken.SelectToken('totalCount', totalToken);
@@ -105,7 +99,7 @@ codeunit 50368 PerfionDataSyncIn
                 valueItemToken.SelectToken('value', itemNumToken);
 
                 Clear(itemNum);
-                itemNum := itemNumToken.AsValue().AsCode();
+                itemNum := CopyStr(itemNumToken.AsValue().AsCode(), 1, MaxStrLen(itemNum));
 
                 if checkItem(itemNum) then begin
                     currentItem := itemNum;
@@ -114,7 +108,7 @@ codeunit 50368 PerfionDataSyncIn
                     hasPicInstructions := false;
                     hasUserNotes := false;
                     hasApplications := false;
-                    Clear(tempCoreReasource);
+                    Clear(tempCoreResource);
                     Clear(tempCoreValue);
                     Clear(tempPicInstructions);
                     Clear(tempApplications);
@@ -159,7 +153,7 @@ codeunit 50368 PerfionDataSyncIn
                                 tempItemDateModified := modifiedDateTime;
                             end
                             else if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
-                                tempCoreReasource := itemFeatureValue.AsValue().AsCode()
+                                tempCoreResource := itemFeatureValue.AsValue().AsCode()
                             else if itemFeatureName.AsValue().AsText() = 'Core' then begin
                                 hasCore := true;
                                 tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
@@ -169,7 +163,7 @@ codeunit 50368 PerfionDataSyncIn
                         end;
                     end;
                     if hasCore then
-                        updateCoreData(itemNum, tempCoreReasource, tempCoreValue, tempItemDateModified)
+                        updateCoreData(itemNum, tempCoreResource, tempCoreValue, tempItemDateModified)
                     else
                         updateCoreData(itemNum, '', 0, tempItemDateModified);
                     if hasPicInstructions then
@@ -195,7 +189,6 @@ codeunit 50368 PerfionDataSyncIn
             perfionDataSyncIn.LastSync := currDateTime;
             perfionDataSyncIn.Modify();
 
-            Clear(perfionConfig."Manual Date");
             perfionConfig.fullSync := false;
             perfionConfig.Modify();
 
@@ -208,17 +201,17 @@ codeunit 50368 PerfionDataSyncIn
 
     begin
         if Text.StrLen(itemNo) > 20 then begin
-            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item Num too long');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item No too long');
             exit(false);
         end;
         recItem.Reset();
 
         if not recItem.Get(itemNo) then begin
-            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item not in BC');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item not in BC');
             exit(false);
         end
         else if recItem.Blocked then begin
-            logHandler.enterLog(Process::"Data Sync In", LogKey::CheckItem, itemNo, 'Item Blocked in BC');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item blocked in BC');
             exit(false);
         end
         else
@@ -243,7 +236,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::Description, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemDescription', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -265,7 +258,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::UserNotes, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemUserNotes', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -279,15 +272,15 @@ codeunit 50368 PerfionDataSyncIn
         recItem.Reset();
         recItem.SetFilter("No.", itemNo);
         if recItem.FindFirst() then begin
-            if recItem.userNotes <> newApplications then begin
-                oldApplications := recItem.userNotes;
-                recItem.userNotes := newApplications;
+            if recItem.application <> newApplications then begin
+                oldApplications := recItem.application;
+                recItem.application := newApplications;
                 if recItem.Modify() then begin
                     dataLogHandler.LogItemUpdate(itemNo, newApplications, oldApplications, Enum::PerfionValueType::Applications, modified);
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::Application, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemApplications', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -308,7 +301,7 @@ codeunit 50368 PerfionDataSyncIn
                         changeCount += 1;
                     end
                     else
-                        logHandler.enterLog(Process::"Data Sync In", LogKey::Picture, itemNo, GetLastErrorText());
+                        logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemPicture', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
                 end;
             end;
         end;
@@ -331,7 +324,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::PicInstructions, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePictureInstructions', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -353,7 +346,7 @@ codeunit 50368 PerfionDataSyncIn
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::Category, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemCategory', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -381,7 +374,7 @@ codeunit 50368 PerfionDataSyncIn
                     needSync := true;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::CoreValue, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateCoreValue', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
 
             if recItem."Core Resource Name" <> newCoreResource then begin
@@ -394,7 +387,7 @@ codeunit 50368 PerfionDataSyncIn
                     needSync := true;
                 end
                 else
-                    logHandler.enterLog(Process::"Data Sync In", LogKey::CoreResource, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateCoreResource', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
 
             if needSync then
@@ -500,8 +493,8 @@ codeunit 50368 PerfionDataSyncIn
             jObject.Add('Clause', buildItemModifiedClause());
             jArray.Add(jObject);
 
-            logHandler.enterLog(Process::"Data Sync In", LogKey::DateTo, '', getToDateText() + ' ' + getToTimeText());
-            logHandler.enterLog(Process::"Data Sync In", LogKey::DateFrom, '', getFromDateText() + ' ' + getFromTimeText());
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'DateTo', getToDateText() + ' ' + getToTimeText());
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'DateFrom', getFromDateText() + ' ' + getFromTimeText());
 
             jObject.Add('Or', jObjectEmpty);
             jArray.Add(jObject);
@@ -589,50 +582,34 @@ codeunit 50368 PerfionDataSyncIn
 
     local procedure getFromDateText(): Text
     begin
-        if useManualDate then
-            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
-        else
-            exit(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
+        exit(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
     local procedure getFromTimeText(): Text
     begin
-        if useManualDate then
-            exit(' 00:00:00')
-        else
-            exit(Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        exit(Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     local procedure getToDateText(): Text
     begin
-        if useManualDate then
-            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
-        else
-            exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
+        exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
     local procedure getToTimeText(): Text
     begin
-        if useManualDate then
-            exit(' 23:59:00')
-        else
-            exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     var
-        useManualDate: Boolean;
         fullSync: Boolean;
-        manualDate: Date;
-        logHandler: Codeunit PerfionLogHandler;
         dataLogHandler: Codeunit PerfionDataInLogHandler;
         changeCount: Integer;
-        Process: Enum PerfionProcess;
-        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         currentItem: Code[20];
         perfionDataSyncIn: Record PerfionDataSyncIn;
         currDateTime: DateTime;
         perfionConfig: Record PerfionConfig;
+        logManager: Codeunit LogManager;
 
     /*
 
@@ -644,6 +621,8 @@ codeunit 50368 PerfionDataSyncIn
       "Select": 
       {
          "languages": "EN",
+         "maxCount": "100",
+         "timezone": "Eastern Standard Time",
          "options": "IncludeTotalCount,ExcludeFeatureDefinitions",
          "Features": [
             { "id": "PartNameProductDescription" },
@@ -652,7 +631,9 @@ codeunit 50368 PerfionDataSyncIn
             { "id": "Core"},
             { "id": "Category" },
             { "id": "PictureLocation"},
-            { "id": "PhotographyPickerInstructions"}
+            { "id": "PhotographyPickerInstructions"},
+            { "id": "BCUserNotes"},
+            { "id": "BCApplications"}
         ]
       },
         "From": [ 
@@ -662,30 +643,34 @@ codeunit 50368 PerfionDataSyncIn
          "Clauses": [ 
              { "Clause": { "id": "brand", "operator": "=", "value": "Normal" } },
              { "Clause": { "id": "BCItemType", "operator": "IN", "value": [ "Assembly", "Prod. Order", "Purchase" ] } },
-             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }},
+             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }},
              { "Or": {} },
-             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-07-03 00:00:00", "2024-07-03 23:00:00" ] }
+             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "BCUserNotes.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "BCApplications.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
              }
-             
          ]
       }
    }
 }
-
     */
 }

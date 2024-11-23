@@ -16,9 +16,9 @@ codeunit 50369 PerfionDataInLogHandler
         //PerfionItemLog.DeleteAll();
         Clear(perfionItemLog);
         perfionItemLog.Init();
-        perfionItemLog."Item No." := ItemNo;
-        perfionItemLog."Original Value" := ogValue;
-        perfionItemLog."Updated Value" := updatedValue;
+        perfionItemLog."Item No." := CopyStr(itemNo, 1, MaxStrLen(perfionItemLog."Item No."));
+        perfionItemLog."Original Value" := CopyStr(ogValue, 1, MaxStrLen(perfionItemLog."Original Value"));
+        perfionItemLog."Updated Value" := CopyStr(updatedValue, 1, MaxStrLen(perfionItemLog."Updated Value"));
         perfionItemLog."Value Type" := valueType;
         perfionItemLog."Last Modified" := lastModified;
         perfionItemLog."Last Updated" := CurrentDateTime;

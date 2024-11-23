@@ -33,13 +33,13 @@ codeunit 50373 PerfionDataSyncReconcile
     begin
         Content := genQueryItemCat();
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::Reconcile, LogKey::Post, '', GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::Reconcile, 'startPerfionRequest', Enum::ErrorType::Catch, GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::Reconcile, LogKey::Post, '', ErrorListMsg);
+                logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'startPerfionRequest', Enum::ErrorType::Crash, ErrorListMsg);
             end;
             exit;
         end;
@@ -395,18 +395,16 @@ codeunit 50373 PerfionDataSyncReconcile
 
 
     var
-        logHandler: Codeunit PerfionLogHandler;
         dataLogHandler: Codeunit PerfionReconcileLogHandler;
         changeCount: Integer;
         totalCount: Integer;
         ReconcileType: Enum PerfionReconcileType;
         ValueType: Enum PerfionValueType;
-        Process: Enum PerfionProcess;
-        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         recItemCatTemp: Record "Item Category" temporary;
         perfionDataReconcile: Record PerfionDataReconcile;
         currDateTime: DateTime;
+        logManager: Codeunit LogManager;
 
     /*
 

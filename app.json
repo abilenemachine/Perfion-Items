@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Items",
   "publisher": "Abilene",
-  "version": "1.0.0.81",
+  "version": "1.0.0.85",
   "brief": "",
   "description": "Integration for syncing between Perfion, BC, and Magento",
   "privacyStatement": "",
@@ -27,7 +27,7 @@
       "id": "0d3ace7e-c245-4364-a3dd-52a0cfbae19b",
       "publisher": "Abilene",
       "name": "Table Extensions",
-      "version": "1.0.2.5"
+      "version": "1.0.3.5"
     },
     {
       "id": "13dd0d55-3340-471c-8cfe-8880a5147313",
@@ -70,6 +70,12 @@
       "publisher": "Lanham Associates",
       "name": "Lanham Demand Planning",
       "version": "23.3.5.14"
+    },
+    {
+      "id": "e2928e23-90f7-4882-a4d5-605dd2c94c73",
+      "publisher": "Abilene",
+      "name": "AbileneTools",
+      "version": "1.0.0.3"
     }
   ],
   "screenshots": [],

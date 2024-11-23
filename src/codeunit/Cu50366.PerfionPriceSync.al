@@ -3,8 +3,14 @@ codeunit 50366 PerfionPriceSync
     trigger OnRun()
 
     begin
-
+        //NOTE - currDateTime is always in EST Time because it is based on my time zone
         currDateTime := CurrentDateTime;
+
+        //LOGIC - For the last sync of the day, run a full sync with no date filters
+        if (Format(DT2Time(CurrentDateTime)) > ('6:00:00 PM')) or perfionConfig.fullSync then
+            fullSync := true
+        else
+            fullSync := false;
 
         if perfionPriceSync.Get() then begin
             currentPriceList := perfionPriceSync.SalesPriceList;
@@ -23,23 +29,17 @@ codeunit 50366 PerfionPriceSync
         ErrorListMsg: Text;
 
     begin
-        if perfionConfig.Get() then
-            manualDate := perfionConfig."Manual Date";
-        if manualDate = 0D then
-            useManualDate := false
-        else
-            useManualDate := true;
 
         Content := GenerateQueryContent();
 
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
-            logHandler.enterLog(Process::"Price Sync", LogKey::Post, '', GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'startPerfionRequest', Enum::ErrorType::Catch, GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
             foreach ErrorListMsg in ErrorList do begin
-                logHandler.enterLog(Process::"Price Sync", LogKey::Post, '', ErrorListMsg);
+                logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'startPerfionRequest', Enum::ErrorType::Crash, ErrorListMsg);
             end;
             exit;
         end;
@@ -170,7 +170,7 @@ codeunit 50366 PerfionPriceSync
 
         priceListHeader.Get(currentPriceList);
         if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
-            logHandler.enterLog(Process::"Price Sync", LogKey::Activation, '', GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorText());
 
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
@@ -178,7 +178,7 @@ codeunit 50366 PerfionPriceSync
         perfionPriceSync.LastSync := currDateTime;
         perfionPriceSync.Modify();
 
-        Clear(perfionConfig."Manual Date");
+        perfionConfig.fullSync := false;
         perfionConfig.Modify();
     end;
 
@@ -188,17 +188,17 @@ codeunit 50366 PerfionPriceSync
 
     begin
         if Text.StrLen(itemNo) > 20 then begin
-            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item Num too long');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'checkItem', itemNo, 'Item No too long');
             exit(false);
         end;
         recItem.Reset();
 
         if not recItem.Get(itemNo) then begin
-            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item not in BC');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'checkItem', itemNo, 'Item not in BC');
             exit(false);
         end
         else if recItem.Blocked then begin
-            logHandler.enterLog(Process::"Price Sync", LogKey::CheckItem, itemNo, 'Item Blocked in BC');
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'checkItem', itemNo, 'Item blocked in BC');
             exit(false);
         end
         else
@@ -225,13 +225,13 @@ codeunit 50366 PerfionPriceSync
                     changeCount += 1;
                 end
                 else
-                    logHandler.enterLog(Process::"Price Sync", LogKey::PriceUpdate, itemNo, GetLastErrorText());
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'PriceUpdate', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end
         else
-            if not insertPrice(itemNo, price, priceGroup, modified, originalPrice) then begin
-                logHandler.enterLog(Process::"Price Sync", LogKey::PriceInsert, itemNo, GetLastErrorText());
-            end
+            if not insertPrice(itemNo, price, priceGroup, modified, originalPrice) then
+                logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'PriceInsert', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
+
     end;
 
     [TryFunction]
@@ -266,7 +266,7 @@ codeunit 50366 PerfionPriceSync
             changeCount += 1;
         end
         else
-            logHandler.enterLog(Process::"Price Sync", LogKey::PriceInsert, itemNo, GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'insertPrice', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
 
     end;
 
@@ -365,6 +365,9 @@ codeunit 50366 PerfionPriceSync
         features.Add('W2MaxDiscount');
         features.Add('W3MaxDiscount');
         features.Add('W4MaxDiscount');
+        features.Add('AverageCost');
+        features.Add('VendorCost');
+        features.Add('UseCostType');
     end;
 
     local procedure buildListPriceFeatures() features: List of [Text]
@@ -376,11 +379,6 @@ codeunit 50366 PerfionPriceSync
         features.Add('W2Calculated');
         features.Add('W3Calculated');
         features.Add('W4Calculated');
-        features.Add('W05MaxDiscount');
-        features.Add('W1MaxDiscount');
-        features.Add('W2MaxDiscount');
-        features.Add('W3MaxDiscount');
-        features.Add('W4MaxDiscount');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -420,14 +418,16 @@ codeunit 50366 PerfionPriceSync
         jArray.Add(jObject);
         Clear(jObject);
 
-        logHandler.enterLog(Process::"Price Sync", LogKey::DateTo, '', getToDateText() + ' ' + getToTimeText());
-        logHandler.enterLog(Process::"Price Sync", LogKey::DateFrom, '', getFromDateText() + ' ' + getFromTimeText());
+        if not fullSync then begin
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'DateTo', getToDateText() + ' ' + getToTimeText());
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'DateFrom', getFromDateText() + ' ' + getFromTimeText());
 
-        foreach feature in features do begin
-            jObject.Add('Clause', buildClauses(feature));
-            jObject.Add('Or', jObjectEmpty);
-            jArray.Add(jObject);
-            Clear(jObject);
+            foreach feature in features do begin
+                jObject.Add('Clause', buildClauses(feature));
+                jObject.Add('Or', jObjectEmpty);
+                jArray.Add(jObject);
+                Clear(jObject);
+            end;
         end;
 
         exit(jArray);
@@ -482,58 +482,47 @@ codeunit 50366 PerfionPriceSync
 
     local procedure getFromDateText(): Text
     begin
-        if useManualDate then
-            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
-        else
-            exit(Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
+        exit(Format(perfionPriceSync.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
     local procedure getFromTimeText(): Text
     begin
-        if useManualDate then
-            exit(' 00:00:00')
-        else
-            exit(Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        exit(Format(perfionPriceSync.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     local procedure getToDateText(): Text
     begin
-        if useManualDate then
-            exit(Format(manualDate, 0, '<Year4>-<Month,2>-<Day,2>'))
-        else
-            exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
+        exit(Format(currDateTime, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
     local procedure getToTimeText(): Text
     begin
-        if useManualDate then
-            exit(' 23:59:00')
-        else
-            exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     var
-        useManualDate: Boolean;
-        manualDate: Date;
+        fullSync: Boolean;
         changeCount: Integer;
-        logHandler: Codeunit PerfionLogHandler;
         priceLogHandler: Codeunit PerfionPriceLogHandler;
-        Process: Enum PerfionProcess;
-        LogKey: Enum PerfionLogKey;
         apiHandler: Codeunit PerfionApiHandler;
         currentPriceList: Code[20];
         perfionConfig: Record PerfionConfig;
         perfionPriceSync: Record PerfionPriceSync;
         currDateTime: DateTime;
+        logManager: Codeunit LogManager;
 
     /*
 
     Example of post to send to Perfion to get results
 
 {
-   "Query": {
-      "Select": {
+   "Query": 
+   {
+      "Select": 
+      {
          "languages": "EN",
+         "timezone": "Eastern Standard Time",
+         "options": "IncludeTotalCount,ExcludeFeatureDefinitions",
          "Features": [
             { "id": "RetailPrice" },
             { "id": "Wholesale" },
@@ -542,32 +531,43 @@ codeunit 50366 PerfionPriceSync
             { "id": "W2Calculated"},
             { "id": "W3Calculated"},
             { "id": "W4Calculated"}
-            ]
-        },
+        ]
+      },
         "From": [ 
             { "id": "Product" }
         ],
       "Where": {
          "Clauses": [ 
-             { "Clause": { "id": "RetailPrice.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "brand", "operator": "=", "value": "Normal" } },
+             { "Clause": { "id": "BCItemType", "operator": "IN", "value": [ "Assembly", "Prod. Order", "Purchase" ] } },
+             { "Clause": { "id": "RetailPrice.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "Wholesale.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "Wholesale.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "W05Calculated.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "W05MaxDiscount.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "W1Calculated.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "W1MaxDiscount.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "W2Calculated.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "W2MaxDiscount.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "W3Calculated.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "W3MaxDiscount.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "W4Calculated.modifiedDate", "operator": "BETWEEN", "value": [ "2024-05-03 08:00:00", "2024-05-03 10:00:00" ] }
+             { "Clause": { "id": "W4MaxDiscount.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "AverageCost.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "VendorCost.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
+             },
+             { "Or": {} },
+             { "Clause": { "id": "UseCostType.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-19 08:00:00", "2024-11-19 09:00:00" ] }
              }
          ]
       }
