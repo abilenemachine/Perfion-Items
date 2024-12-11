@@ -138,11 +138,11 @@ table 50250 PerfionItems
             MinValue = 0;
         }
 
-        field(30; userNotes; Text[256])
+        field(30; userNotes; Text[2048])
         {
             Caption = 'User Notes';
         }
-        field(31; application; Text[256])
+        field(31; application; Text[2048])
         {
             Caption = 'Application';
         }

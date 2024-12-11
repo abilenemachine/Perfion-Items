@@ -71,8 +71,8 @@ codeunit 50368 PerfionDataSyncIn
         tempCoreResource: Code[20];
         tempCoreValue: Decimal;
         tempItemDateModified: DateTime;
-        tempApplications: Text[256];
-        tempUserNotes: Text[256];
+        tempApplications: Text[2048];
+        tempUserNotes: Text[2048];
         modifiedDateTime: DateTime;
         tempPicInstructions: Text[400];
 

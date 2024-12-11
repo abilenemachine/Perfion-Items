@@ -22,6 +22,7 @@ table 50251 PerfionConfig
         field(4; "fullSync"; Boolean)
         {
             InitValue = false;
+            Caption = 'Full Sync';
         }
     }
     keys
