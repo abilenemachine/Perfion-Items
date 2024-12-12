@@ -6,18 +6,20 @@ codeunit 50366 PerfionPriceSync
         //NOTE - currDateTime is always in EST Time because it is based on my time zone
         currDateTime := CurrentDateTime;
 
-        //LOGIC - For the last sync of the day, run a full sync with no date filters
-        if (Format(DT2Time(CurrentDateTime)) > ('6:00:00 PM')) or perfionConfig.fullSync then
-            fullSync := true
-        else
-            fullSync := false;
+        if perfionConfig.Get() then begin
+            //LOGIC - For the last sync of the day, run a full sync with no date filters
+            if (Format(DT2Time(CurrentDateTime)) > ('5:00:00 PM')) or (perfionConfig.fullSync) then
+                fullSync := true
+            else
+                fullSync := false;
 
-        if perfionPriceSync.Get() then begin
-            currentPriceList := perfionPriceSync.SalesPriceList;
-            changeCount := 0;
+            if perfionPriceSync.Get() then begin
+                currentPriceList := perfionPriceSync.SalesPriceList;
+                changeCount := 0;
 
-            //LOGIC - Get the Perfion Token & register variables
-            startPerfionRequest();
+                //LOGIC - Get the Perfion Token & register variables
+                startPerfionRequest();
+            end;
         end;
     end;
 
