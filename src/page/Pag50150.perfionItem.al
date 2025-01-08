@@ -57,6 +57,7 @@ page 50150 perfionItem
                 field(VendorCore; Rec."Vendor Core") { }
                 field(UserNotes; Rec.userNotes) { }
                 field(Application; Rec.application) { }
+                field(CountryOfOrigin; Rec.CountryOfOrigin) { }
 
             }
         }

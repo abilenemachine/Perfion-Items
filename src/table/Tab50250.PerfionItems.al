@@ -146,6 +146,10 @@ table 50250 PerfionItems
         {
             Caption = 'Application';
         }
+        field(32; CountryOfOrigin; Code[10])
+        {
+            Caption = 'Country of Origin';
+        }
 
         /* table 14000555 "LAX DP Procurement Unit" */
         field(50; "Item Class Description"; Text[30])

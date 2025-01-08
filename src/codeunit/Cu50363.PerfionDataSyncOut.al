@@ -61,6 +61,8 @@ codeunit 50363 PerfionDataSyncOut
 
                 rec.Demand := EH.GetUsageLast12Months(items."No.");
 
+                rec.CountryOfOrigin := getCountryOfOrigin(items);
+
                 items.CalcFields("Assembly BOM");
 
                 if items."Assembly BOM" then begin
@@ -88,6 +90,14 @@ codeunit 50363 PerfionDataSyncOut
     var
         procureVendor: Code[20];
         minQty: Decimal;
+
+    local procedure getCountryOfOrigin(item: Record Item): Code[10]
+    begin
+        if item."Country/Region of Origin Code" = 'US' then
+            exit('US')
+        else
+            exit('')
+    end;
 
     local procedure getOversize(item: Record Item) booleanText: Decimal
     begin
