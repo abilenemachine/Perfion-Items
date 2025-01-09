@@ -94,7 +94,7 @@ codeunit 50363 PerfionDataSyncOut
     local procedure getCountryOfOrigin(item: Record Item): Code[10]
     begin
         if item."Country/Region of Origin Code" = 'US' then
-            exit('US')
+            exit('Made in USA')
         else
             exit('')
     end;
