@@ -2,86 +2,97 @@ codeunit 50363 PerfionDataSyncOut
 {
     trigger OnRun()
     var
-        items: Record Item;
-        rec: Record PerfionItems;
+        bcItems: Record Item;
+        recPerfionItems: Record PerfionItems;
         Values: List of [Decimal];
         perfionDataSync: Record PerfionDataSyncOut;
         changeCount: Integer;
+        ItemUOM: Record "Item Unit of Measure";
+        startTime, endTime : Time;
+        executionTime: Duration;
 
     begin
         perfionDataSync.LastSync := CreateDateTime(Today, Time);
-        rec.Reset();
-        rec.DeleteAll;
+        recPerfionItems.Reset();
+        recPerfionItems.DeleteAll;
 
-        items.SetRange(Type, Enum::"Item Type"::Inventory);
-        items.SetRange("Add To Perfion", true);
-        //items.SetFilter("No.", 'AMAR26497-U');
-        //items.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMGLUE', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
+        bcItems.SetRange(Type, Enum::"Item Type"::Inventory);
+        bcItems.SetRange("Add To Perfion", true);
+        //bcItems.SetFilter("No.", 'AMAR26497-U');
+        //bcItems.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMGLUE', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
 
-        if items.FindSet() then
+        if bcItems.FindSet() then
             repeat
+                startTime := Time;
+                recPerfionItems.Init();
+                recPerfionItems."No." := bcItems."No.";
+                recPerfionItems.Description := bcItems.Description;
+                recPerfionItems.GTIN := bcItems.GTIN;
+                recPerfionItems.Blocked := bcItems.Blocked;
+                recPerfionItems."Replenishment System" := bcItems."Replenishment System";
+                recPerfionItems."Gen. Prod. Posting Group" := getCondition(bcItems);
+                recPerfionItems."Item Category Code" := bcItems."Item Category Code";
+                recPerfionItems."Drop Ship" := bcItems."Drop Ship";
 
-                rec.Init();
-                rec."No." := items."No.";
-                rec.Description := items.Description;
-                rec.GTIN := items.GTIN;
-                rec.Blocked := items.Blocked;
-                rec."Replenishment System" := items."Replenishment System";
-                rec."Gen. Prod. Posting Group" := getCondition(items);
-                rec."Item Category Code" := items."Item Category Code";
-                rec."Drop Ship" := items."Drop Ship";
+                ItemUOM.Reset();
+                ItemUOM := getUom(bcItems."No.");
+                recPerfionItems.Length := ItemUOM.Length;
+                recPerfionItems.Width := ItemUOM.Width;
+                recPerfionItems.Height := ItemUOM.Height;
+                recPerfionItems.Weight := ItemUOM.Weight;
+                recPerfionItems.Cubage := ItemUOM.Cubage;
 
-                rec.Length := getUom(items."No.", 'Length');
-                rec.Width := getUom(items."No.", 'Width');
-                rec.Height := getUom(items."No.", 'Height');
-                rec.Weight := getUom(items."No.", 'Weight');
-                rec.Cubage := getUom(items."No.", 'Cubage');
-                rec.NMFC := items."IWX LTL NMFC";
-                rec."Freight Density" := items."IWX LTL Freight Density";
-                rec.Oversize := getOversize(items);
+                recPerfionItems.NMFC := bcItems."IWX LTL NMFC";
+                recPerfionItems."Freight Density" := bcItems."IWX LTL Freight Density";
+                recPerfionItems.Oversize := getOversize(bcItems);
 
-                rec."Item Class Description" := getItemClass(items."No.");
+                recPerfionItems."Item Class Description" := getItemClass(bcItems."No.");
 
-                rec."Vendor No." := getVendor(items);
+                recPerfionItems."Vendor No." := getVendor(bcItems);
 
-                rec."Unit Cost" := items."Unit Cost";
+                recPerfionItems."Unit Cost" := bcItems."Unit Cost";
 
-                Values := getPurchasePrice(items);
-                rec."Vendor Cost" := Values.Get(1);
-                rec."Vendor Core" := Values.Get(2);
+                Values := getPurchasePrice(bcItems);
+                recPerfionItems."Vendor Cost" := Values.Get(1);
+                recPerfionItems."Vendor Core" := Values.Get(2);
 
-                rec."Minimum Qty" := minQty;
+                recPerfionItems."Minimum Qty" := minQty;
 
-                rec."Excess Amount" := getExcessAmount(items."No.");
+                recPerfionItems."Excess Amount" := getExcessAmount(bcItems."No.");
 
-                rec."Reference No." := getItemRef(items);
+                recPerfionItems."Reference No." := getItemRef(bcItems);
 
-                rec.application := items.application;
-                rec.userNotes := items.userNotes;
+                recPerfionItems.application := bcItems.application;
+                recPerfionItems.userNotes := bcItems.userNotes;
 
-                rec.Demand := EH.GetUsageLast12Months(items."No.");
+                recPerfionItems.Demand := EH.GetUsageLast12Months(bcItems."No.");
 
-                rec.CountryOfOrigin := getCountryOfOrigin(items);
+                recPerfionItems.CountryOfOrigin := getCountryOfOrigin(bcItems);
 
-                items.CalcFields("Assembly BOM");
+                bcItems.CalcFields("Assembly BOM");
 
-                if items."Assembly BOM" then begin
-                    rec."Quantity KS" := getBomComponents(items."No.", 'KS');
-                    rec."Quantity SC" := getBomComponents(items."No.", 'SC');
-                    rec."Quantity SD" := getBomComponents(items."No.", 'SD');
-                    rec."Quantity MT" := getBomComponents(items."No.", 'MT');
+                if bcItems."Assembly BOM" then begin
+                    recPerfionItems."Quantity KS" := getBomComponents(bcItems."No.", 'KS');
+                    recPerfionItems."Quantity SC" := getBomComponents(bcItems."No.", 'SC');
+                    recPerfionItems."Quantity SD" := getBomComponents(bcItems."No.", 'SD');
+                    recPerfionItems."Quantity MT" := getBomComponents(bcItems."No.", 'MT');
                 end
                 else begin
-                    rec."Quantity KS" := getQty(items."No.", 'KS');
-                    rec."Quantity SC" := getQty(items."No.", 'SC');
-                    rec."Quantity SD" := getQty(items."No.", 'SD');
-                    rec."Quantity MT" := getQty(items."No.", 'MT');
+                    recPerfionItems."Quantity KS" := getQty(bcItems."No.", 'KS');
+                    recPerfionItems."Quantity SC" := getQty(bcItems."No.", 'SC');
+                    recPerfionItems."Quantity SD" := getQty(bcItems."No.", 'SD');
+                    recPerfionItems."Quantity MT" := getQty(bcItems."No.", 'MT');
                 end;
 
-                rec.Insert();
-                logHandler.logItemUpdate(rec."No.", items."Last DateTime Modified");
+                recPerfionItems.Insert();
+                logHandler.logItemUpdate(recPerfionItems."No.", bcItems."Last DateTime Modified");
                 changeCount += 1;
-            until items.Next() = 0;
+
+                endTime := Time;
+                executionTime := endTime - startTime;
+                logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'OnRun', bcItems."No.", '', startTime, endTime, executionTime);
+
+            until bcItems.Next() = 0;
 
         perfionDataSync.Processed := changeCount;
         perfionDataSync.Modify();
@@ -128,12 +139,15 @@ codeunit 50363 PerfionDataSyncOut
         qtyInit: Decimal;
         qtyMin: Decimal;
         qtyPer: Decimal;
+        startTime, endTime : Time;
+        executionTime: Duration;
     begin
 
         qtyPer := 0;
         qty := 0;
         qtyMin := 0;
         qtyInit := 0;
+        startTime := Time;
 
         bComponent.Reset();
         bComponent.SetRange("Parent Item No.", itemNo);
@@ -160,6 +174,9 @@ codeunit 50363 PerfionDataSyncOut
                         exit(0);
                 end;
             until bComponent.Next() = 0;
+        endTime := Time;
+        executionTime := endTime - startTime;
+        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getBomComponents', itemNo, '', startTime, endTime, executionTime);
         exit(qtyMin);
 
     end;
@@ -176,6 +193,9 @@ codeunit 50363 PerfionDataSyncOut
         qtyProduction: Decimal;
         qtyTransfer: Decimal;
 
+        startTime, endTime : Time;
+        executionTime: Duration;
+
     begin
         qtyOnSalesOrder := 0;
         qtyUnsellableBin := 0;
@@ -184,6 +204,8 @@ codeunit 50363 PerfionDataSyncOut
         qtyFinal := 0;
         qtyProduction := 0;
         qtyTransfer := 0;
+
+        startTime := Time;
 
         qtyTransfer := getTransferQty(itemNo, location);
         qtyProduction := getProductionQty(itemNo, location);
@@ -196,6 +218,10 @@ codeunit 50363 PerfionDataSyncOut
 
         if qtyFinal < 0 then
             qtyFinal := 0;
+
+        endTime := Time;
+        executionTime := endTime - startTime;
+        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getQty', itemNo, '', startTime, endTime, executionTime);
 
         exit(qtyFinal);
     end;
@@ -307,7 +333,10 @@ codeunit 50363 PerfionDataSyncOut
     local procedure getItemClass(itemNo: Code[20]) itemClass: text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
+        startTime, endTime : Time;
+        executionTime: Duration;
     begin
+        startTime := Time;
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", itemNo);
         if ItemProc.FindSet() then
@@ -324,12 +353,19 @@ codeunit 50363 PerfionDataSyncOut
             until ItemProc.Next() = 0
         else
             itemClass := '';
+
+        endTime := Time;
+        executionTime := endTime - startTime;
+        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getItemClass', itemNo, '', startTime, endTime, executionTime);
     end;
 
     local procedure getVendor(item: Record Item) itemVendor: text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
+        startTime, endTime : Time;
+        executionTime: Duration;
     begin
+        startTime := Time;
         Clear(procureVendor);
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", item."No.");
@@ -362,6 +398,9 @@ codeunit 50363 PerfionDataSyncOut
             itemVendor := item."Vendor No.";
             procureVendor := '';
         end;
+        endTime := Time;
+        executionTime := endTime - startTime;
+        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getVendor', item."No.", '', startTime, endTime, executionTime);
 
     end;
 
@@ -391,7 +430,7 @@ codeunit 50363 PerfionDataSyncOut
             amount := 0;
     end;
 
-    local procedure getUom(itemNo: Code[20]; type: text[10]) rValue: Decimal
+    local procedure getUom(itemNo: Code[20]): Record "Item Unit of Measure"
     var
         ItemUOM: Record "Item Unit of Measure";
     begin
@@ -399,18 +438,7 @@ codeunit 50363 PerfionDataSyncOut
         ItemUOM.SetRange("Item No.", itemNo);
         ItemUOM.SetRange(Code, 'EACH');
         if ItemUOM.FindFirst() then
-            case type of
-                'Length':
-                    rValue := ItemUOM.Length;
-                'Width':
-                    rValue := ItemUOM.Width;
-                'Height':
-                    rValue := ItemUOM.Height;
-                'Weight':
-                    rValue := ItemUOM.Weight;
-                'Cubage':
-                    rValue := ItemUOM.Cubage;
-            end;
+            exit(ItemUOM)
     end;
 
     local procedure getPurchasePriceDate(item: Record Item) startingDate: Date
@@ -434,7 +462,10 @@ codeunit 50363 PerfionDataSyncOut
     local procedure getPurchasePrice(item: Record Item) Values: List of [Decimal]
     var
         ItemPrice: Record "Price List Line";
+        startTime, endTime : Time;
+        executionTime: Duration;
     begin
+        startTime := Time;
         Clear(minQty);
         ItemPrice.Reset();
         ItemPrice.SetRange("Asset No.", item."No.");
@@ -487,7 +518,10 @@ codeunit 50363 PerfionDataSyncOut
                     minQty := 0
                 end
             end
-        end
+        end;
+        endTime := Time;
+        executionTime := endTime - startTime;
+        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getPurchasePrice', item."No.", '', startTime, endTime, executionTime);
 
 
     end;
@@ -518,6 +552,8 @@ codeunit 50363 PerfionDataSyncOut
     var
         EH: Codeunit SSIExensionHook;
         logHandler: Codeunit PerfionDataLogHandler;
+        logTiming: Codeunit LogTiming;
+
 
 
 }
