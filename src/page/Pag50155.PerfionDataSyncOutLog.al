@@ -47,6 +47,9 @@ page 50155 PerfionDataSyncOutLog
                 field("Quantity SD"; Rec."Quantity SD") { }
                 field(userNotes; Rec.userNotes) { }
                 field(application; Rec.application) { }
+
+                field("Sales Unit of Measure"; Rec."Sales Unit of Measure") { }
+                field("Purch. Unit of Measure"; Rec."Purch. Unit of Measure") { }
             }
         }
     }

@@ -200,6 +200,14 @@ table 50250 PerfionItems
             DecimalPlaces = 0 : 5;
         }
 
+        field(80; "Sales Unit of Measure"; Code[10])
+        {
+            Caption = 'Sales Unit of Measure';
+        }
+        field(81; "Purch. Unit of Measure"; Code[10])
+        {
+            Caption = 'Purch. Unit of Measure';
+        }
         field(100; Id; Integer)
         {
             AutoIncrement = true;

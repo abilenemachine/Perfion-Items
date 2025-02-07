@@ -59,6 +59,9 @@ page 50150 perfionItem
                 field(Application; Rec.application) { }
                 field(CountryOfOrigin; Rec.CountryOfOrigin) { }
 
+                field("SalesUom"; Rec."Sales Unit of Measure") { }
+                field("PurchUom"; Rec."Purch. Unit of Measure") { }
+
             }
         }
     }

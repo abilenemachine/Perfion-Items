@@ -8,8 +8,8 @@ codeunit 50363 PerfionDataSyncOut
         perfionDataSync: Record PerfionDataSyncOut;
         changeCount: Integer;
         ItemUOM: Record "Item Unit of Measure";
-        startTime, endTime : Time;
-        executionTime: Duration;
+    //startTime, endTime : Time;
+    //executionTime: Duration;
 
     begin
         perfionDataSync.LastSync := CreateDateTime(Today, Time);
@@ -23,7 +23,7 @@ codeunit 50363 PerfionDataSyncOut
 
         if bcItems.FindSet() then
             repeat
-                startTime := Time;
+                //startTime := Time;
                 recPerfionItems.Init();
                 recPerfionItems."No." := bcItems."No.";
                 recPerfionItems.Description := bcItems.Description;
@@ -33,6 +33,8 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems."Gen. Prod. Posting Group" := getCondition(bcItems);
                 recPerfionItems."Item Category Code" := bcItems."Item Category Code";
                 recPerfionItems."Drop Ship" := bcItems."Drop Ship";
+                recPerfionItems."Sales Unit of Measure" := bcItems."Sales Unit of Measure";
+                recPerfionItems."Purch. Unit of Measure" := bcItems."Purch. Unit of Measure";
 
                 ItemUOM.Reset();
                 ItemUOM := getUom(bcItems."No.");
@@ -88,9 +90,9 @@ codeunit 50363 PerfionDataSyncOut
                 logHandler.logItemUpdate(recPerfionItems."No.", bcItems."Last DateTime Modified");
                 changeCount += 1;
 
-                endTime := Time;
-                executionTime := endTime - startTime;
-                logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'OnRun', bcItems."No.", '', startTime, endTime, executionTime);
+            //endTime := Time;
+            //executionTime := endTime - startTime;
+            //logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'OnRun', bcItems."No.", '', startTime, endTime, executionTime);
 
             until bcItems.Next() = 0;
 
@@ -139,15 +141,12 @@ codeunit 50363 PerfionDataSyncOut
         qtyInit: Decimal;
         qtyMin: Decimal;
         qtyPer: Decimal;
-        startTime, endTime : Time;
-        executionTime: Duration;
     begin
 
         qtyPer := 0;
         qty := 0;
         qtyMin := 0;
         qtyInit := 0;
-        startTime := Time;
 
         bComponent.Reset();
         bComponent.SetRange("Parent Item No.", itemNo);
@@ -174,9 +173,7 @@ codeunit 50363 PerfionDataSyncOut
                         exit(0);
                 end;
             until bComponent.Next() = 0;
-        endTime := Time;
-        executionTime := endTime - startTime;
-        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getBomComponents', itemNo, '', startTime, endTime, executionTime);
+        //logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getBomComponents', itemNo, '', startTime, endTime, executionTime);
         exit(qtyMin);
 
     end;
@@ -193,9 +190,6 @@ codeunit 50363 PerfionDataSyncOut
         qtyProduction: Decimal;
         qtyTransfer: Decimal;
 
-        startTime, endTime : Time;
-        executionTime: Duration;
-
     begin
         qtyOnSalesOrder := 0;
         qtyUnsellableBin := 0;
@@ -204,8 +198,6 @@ codeunit 50363 PerfionDataSyncOut
         qtyFinal := 0;
         qtyProduction := 0;
         qtyTransfer := 0;
-
-        startTime := Time;
 
         qtyTransfer := getTransferQty(itemNo, location);
         qtyProduction := getProductionQty(itemNo, location);
@@ -218,10 +210,6 @@ codeunit 50363 PerfionDataSyncOut
 
         if qtyFinal < 0 then
             qtyFinal := 0;
-
-        endTime := Time;
-        executionTime := endTime - startTime;
-        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getQty', itemNo, '', startTime, endTime, executionTime);
 
         exit(qtyFinal);
     end;
@@ -333,10 +321,7 @@ codeunit 50363 PerfionDataSyncOut
     local procedure getItemClass(itemNo: Code[20]) itemClass: text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
-        startTime, endTime : Time;
-        executionTime: Duration;
     begin
-        startTime := Time;
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", itemNo);
         if ItemProc.FindSet() then
@@ -354,18 +339,12 @@ codeunit 50363 PerfionDataSyncOut
         else
             itemClass := '';
 
-        endTime := Time;
-        executionTime := endTime - startTime;
-        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getItemClass', itemNo, '', startTime, endTime, executionTime);
     end;
 
     local procedure getVendor(item: Record Item) itemVendor: text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
-        startTime, endTime : Time;
-        executionTime: Duration;
     begin
-        startTime := Time;
         Clear(procureVendor);
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", item."No.");
@@ -398,9 +377,6 @@ codeunit 50363 PerfionDataSyncOut
             itemVendor := item."Vendor No.";
             procureVendor := '';
         end;
-        endTime := Time;
-        executionTime := endTime - startTime;
-        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getVendor', item."No.", '', startTime, endTime, executionTime);
 
     end;
 
@@ -462,10 +438,7 @@ codeunit 50363 PerfionDataSyncOut
     local procedure getPurchasePrice(item: Record Item) Values: List of [Decimal]
     var
         ItemPrice: Record "Price List Line";
-        startTime, endTime : Time;
-        executionTime: Duration;
     begin
-        startTime := Time;
         Clear(minQty);
         ItemPrice.Reset();
         ItemPrice.SetRange("Asset No.", item."No.");
@@ -519,10 +492,6 @@ codeunit 50363 PerfionDataSyncOut
                 end
             end
         end;
-        endTime := Time;
-        executionTime := endTime - startTime;
-        logTiming.logTiming(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'getPurchasePrice', item."No.", '', startTime, endTime, executionTime);
-
 
     end;
 
@@ -552,7 +521,7 @@ codeunit 50363 PerfionDataSyncOut
     var
         EH: Codeunit SSIExensionHook;
         logHandler: Codeunit PerfionDataLogHandler;
-        logTiming: Codeunit LogTiming;
+    //logTiming: Codeunit LogTiming;
 
 
 
