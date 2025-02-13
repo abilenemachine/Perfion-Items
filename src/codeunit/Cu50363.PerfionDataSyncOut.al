@@ -104,7 +104,7 @@ codeunit 50363 PerfionDataSyncOut
         procureVendor: Code[20];
         minQty: Decimal;
 
-    local procedure getCountryOfOrigin(item: Record Item): Code[10]
+    local procedure getCountryOfOrigin(item: Record Item): Code[20]
     begin
         if item."Country/Region of Origin Code" = 'US' then
             exit('Made in USA')

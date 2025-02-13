@@ -1,1 +1,1 @@
-﻿{"Added":[],"Modified":[{"Id":50363,"Kind":11,"Name":"PerfionDataSyncOut","Namespace":""},{"Id":50250,"Kind":10,"Name":"PerfionItems","Namespace":""},{"Id":50150,"Kind":12,"Name":"perfionItem","Namespace":""},{"Id":50155,"Kind":12,"Name":"PerfionDataSyncOutLog","Namespace":""}],"Removed":[]}
+﻿{"Added":[],"Modified":[{"Id":50368,"Kind":11,"Name":"PerfionDataSyncIn","Namespace":""},{"Id":50366,"Kind":11,"Name":"PerfionPriceSync","Namespace":""}],"Removed":[]}

@@ -5,6 +5,7 @@ page 50151 PerfionConfig
     UsageCategory = Administration;
     SourceTable = PerfionConfig;
     Caption = 'Perfion Integration';
+    Editable = false;
 
     layout
     {

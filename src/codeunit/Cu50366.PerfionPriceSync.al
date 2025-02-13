@@ -8,7 +8,7 @@ codeunit 50366 PerfionPriceSync
 
         if perfionConfig.Get() then begin
             //LOGIC - For the last sync of the day, run a full sync with no date filters
-            if (Format(DT2Time(CurrentDateTime)) > ('5:00:00 PM')) or (perfionConfig.fullSync) then
+            if (CheckTime()) or (perfionConfig.fullSync) then
                 fullSync := true
             else
                 fullSync := false;
@@ -21,6 +21,25 @@ codeunit 50366 PerfionPriceSync
                 startPerfionRequest();
             end;
         end;
+    end;
+
+    procedure CheckTime(): Boolean
+    var
+        MyTime: Time;
+        CurrentTime: Time;
+        IsLater: Boolean;
+    begin
+        // 1. Define the target time using a TIME LITERAL.
+        MyTime := 180000T; // 6:00:00 PM (24-hour format)
+        CurrentTime := Time();
+        IsLater := CurrentTime >= MyTime;
+
+        if IsLater then
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'CheckTime true', Format(CurrentTime) + ' - ' + Format(MyTime))
+        else
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'CheckTime false', Format(CurrentTime) + ' - ' + Format(MyTime));
+
+        exit(IsLater); // Return the result
     end;
 
     local procedure startPerfionRequest()
@@ -501,6 +520,7 @@ codeunit 50366 PerfionPriceSync
     begin
         exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
+
 
     var
         fullSync: Boolean;

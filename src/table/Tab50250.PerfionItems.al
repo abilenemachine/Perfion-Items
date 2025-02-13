@@ -146,7 +146,7 @@ table 50250 PerfionItems
         {
             Caption = 'Application';
         }
-        field(32; CountryOfOrigin; Code[10])
+        field(32; CountryOfOrigin; Code[20])
         {
             Caption = 'Country of Origin';
         }
