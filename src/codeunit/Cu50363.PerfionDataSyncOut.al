@@ -43,6 +43,7 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.Height := ItemUOM.Height;
                 recPerfionItems.Weight := ItemUOM.Weight;
                 recPerfionItems.Cubage := ItemUOM.Cubage;
+                recPerfionItems."Qty per UOM" := ItemUOM."Qty. per Unit of Measure";
 
                 recPerfionItems.NMFC := bcItems."IWX LTL NMFC";
                 recPerfionItems."Freight Density" := bcItems."IWX LTL Freight Density";
