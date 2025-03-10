@@ -38,7 +38,8 @@ page 50155 PerfionDataSyncOutLog
                 field(Weight; Rec.Weight) { }
                 field("Item Class Description"; Rec."Item Class Description") { }
 
-                field(Demand; Rec.Demand) { }
+                field(Demand12Months; Rec.demand12months) { }
+                field(Demand1Month; Rec.demand1month) { }
                 field("Excess Amount"; Rec."Excess Amount") { }
 
                 field("Quantity KS"; Rec."Quantity KS") { }
@@ -50,6 +51,7 @@ page 50155 PerfionDataSyncOutLog
 
                 field("Sales Unit of Measure"; Rec."Sales Unit of Measure") { }
                 field("Purch. Unit of Measure"; Rec."Purch. Unit of Measure") { }
+                field("Qty per UOM"; Rec."Qty per UOM") { }
             }
         }
     }

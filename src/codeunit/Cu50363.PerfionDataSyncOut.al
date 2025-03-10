@@ -43,7 +43,8 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.Height := ItemUOM.Height;
                 recPerfionItems.Weight := ItemUOM.Weight;
                 recPerfionItems.Cubage := ItemUOM.Cubage;
-                recPerfionItems."Qty per UOM" := ItemUOM."Qty. per Unit of Measure";
+
+                recPerfionItems."Qty per UOM" := getQtyPerUom(bcItems."No.", bcItems."Purch. Unit of Measure");
 
                 recPerfionItems.NMFC := bcItems."IWX LTL NMFC";
                 recPerfionItems."Freight Density" := bcItems."IWX LTL Freight Density";
@@ -68,7 +69,8 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.application := bcItems.application;
                 recPerfionItems.userNotes := bcItems.userNotes;
 
-                recPerfionItems.Demand := EH.GetUsageLast12Months(bcItems."No.");
+                recPerfionItems.demand12months := GetUsageLast12Months(bcItems."No.");
+                recPerfionItems.demand1month := GetUsageLast1Month(bcItems."No.");
 
                 recPerfionItems.CountryOfOrigin := getCountryOfOrigin(bcItems);
 
@@ -418,6 +420,17 @@ codeunit 50363 PerfionDataSyncOut
             exit(ItemUOM)
     end;
 
+    local procedure getQtyPerUom(itemNo: Code[20]; uomCode: Code[10]): Decimal
+    var
+        ItemUOM: Record "Item Unit of Measure";
+    begin
+        ItemUOM.Reset();
+        ItemUOM.SetRange("Item No.", itemNo);
+        ItemUOM.SetRange(Code, uomCode);
+        if ItemUOM.FindFirst() then
+            exit(ItemUOM."Qty. per Unit of Measure")
+    end;
+
     local procedure getPurchasePriceDate(item: Record Item) startingDate: Date
     var
         PriceHeader: Record "Price List Header";
@@ -519,8 +532,62 @@ codeunit 50363 PerfionDataSyncOut
 
     end;
 
+    local procedure GetUsageLast12Months(ItemNo: Code[20]): Decimal
     var
-        EH: Codeunit SSIExensionHook;
+        LAXDPUsageLedEntry: Record "LAX DP Usage Ledger Entry";
+        startDate: date;
+        endDate: date;
+        TotalUsageQty: Decimal;
+    begin
+        TotalUsageQty := 0;
+        EndDate := CALCDATE('-CM-1D', Today);
+        StartDate := CALCDATE('-12M', EndDate);
+        clear(LAXDPUsageLedEntry);
+        LAXDPUsageLedEntry.SetCurrentKey("Item No.", "Entry Type", "Usage Date");
+        LAXDPUsageLedEntry.SetRange("Item No.", ItemNo);
+        LAXDPUsageLedEntry.SetRange("Entry Type", LAXDPUsageLedEntry."Entry Type"::Sale);
+        LAXDPUsageLedEntry.SetRange("USAGE date", startDate, endDate);
+        if LAXDPUsageLedEntry.FindFirst() then begin
+            LAXDPUsageLedEntry.CalcSums("Quantity");
+            exit(-1 * LAXDPUsageLedEntry."Quantity");
+        end;
+        exit(0);
+    end;
+
+    local procedure GetUsageLast1Month(ItemNo: Code[20]): Decimal
+    var
+        LAXDPUsageLedEntry: Record "LAX DP Usage Ledger Entry";
+        startDate: date;
+        endDate: date;
+        TotalUsageQty: Decimal;
+    begin
+        TotalUsageQty := 0;
+        EndDate := CALCDATE('-CM-1D', Today);
+        StartDate := CALCDATE('-1M', EndDate);
+        clear(LAXDPUsageLedEntry);
+        LAXDPUsageLedEntry.SetCurrentKey("Item No.", "Entry Type", "Usage Date");
+        LAXDPUsageLedEntry.SetRange("Item No.", ItemNo);
+        LAXDPUsageLedEntry.SetRange("Entry Type", LAXDPUsageLedEntry."Entry Type"::Sale);
+        LAXDPUsageLedEntry.SetRange("USAGE date", startDate, endDate);
+        if LAXDPUsageLedEntry.FindFirst() then begin
+            LAXDPUsageLedEntry.CalcSums("Quantity");
+            exit(-1 * LAXDPUsageLedEntry."Quantity");
+        end;
+        exit(0);
+    end;
+
+    procedure CalcAvailableQty(ItemNo: code[20]; LocCode: code[20]): Decimal
+    var
+        ILE: Record "Item Ledger Entry";
+    begin
+        Clear(ILE);
+        ILE.SetRange("Item No.", ItemNo);
+        IF LocCode <> '' then ILE.SetRange("Location Code", LocCode);
+        ILE.CalcSums(Quantity);
+        exit(ILE.Quantity);
+    end;
+
+    var
         logHandler: Codeunit PerfionDataLogHandler;
     //logTiming: Codeunit LogTiming;
 

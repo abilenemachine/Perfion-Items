@@ -46,7 +46,8 @@ page 50150 perfionItem
 
                 field(ExcessAmount; Rec."Excess Amount") { }
 
-                field(Demand; Rec.Demand) { }
+                field(Demand12Months; Rec.demand12months) { }
+                field(Demand1Month; Rec.demand1month) { }
 
                 field(NMFC; Rec.NMFC) { }
                 field(FreightDensity; Rec."Freight Density") { }

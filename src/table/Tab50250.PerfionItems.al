@@ -162,9 +162,13 @@ table 50250 PerfionItems
             Caption = 'Vendor Date Changed';
         }
         */
-        field(52; Demand; Decimal)
+        field(52; demand12months; Decimal)
         {
-            Caption = 'Demand';
+            Caption = 'Demand 12 Months';
+        }
+        field(53; demand1month; Decimal)
+        {
+            Caption = 'Demand 1 Month';
         }
 
         /* table 14000584 "LAX DP Surplus Inventory Value" */
