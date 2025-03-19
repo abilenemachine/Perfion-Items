@@ -159,6 +159,8 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'Visibility' then
+                                updateItemVisibility(itemNum, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then begin
                                 hasUserNotes := true;
                                 tempUserNotes := itemFeatureValue.AsValue().AsText();
@@ -351,6 +353,52 @@ codeunit 50368 PerfionDataSyncIn
         end;
     end;
 
+    local procedure updateItemVisibility(itemNo: Code[20]; newVisibility: Integer; modified: DateTime)
+    var
+        oldVisibility: Enum PerfionMagentoVisibilityType;
+        recItem: Record Item;
+        enumVisibility: Enum PerfionMagentoVisibilityType;
+        oldVisibilityText: Text;
+        newVisibilityText: Text;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            // Get the current visibility value
+            oldVisibility := recItem.MagentoVisibility;
+            // Convert incoming integer to enum value
+            case newVisibility of
+                1:
+                    enumVisibility := Enum::PerfionMagentoVisibilityType::NotVisible;
+                2:
+                    enumVisibility := Enum::PerfionMagentoVisibilityType::InCatalog;
+                3:
+                    enumVisibility := Enum::PerfionMagentoVisibilityType::InSearch;
+                4:
+                    enumVisibility := Enum::PerfionMagentoVisibilityType::Both;
+                else begin
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemVisibility', Enum::ErrorType::Catch, itemNo, 'Invalid Magento Visibility value: ' + Format(newVisibility));
+                    exit;
+                end;
+            end;
+
+            // Convert enum values to text
+            oldVisibilityText := Format(oldVisibility);
+            newVisibilityText := Format(enumVisibility);
+
+            if oldVisibility <> enumVisibility then begin
+                recItem.MagentoVisibility := enumVisibility;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newVisibilityText, oldVisibilityText, Enum::PerfionValueType::Visibility, modified);
+                    changeCount += 1;
+                end
+                else
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemVisibility', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
     local procedure updateItemCategory(itemNo: Code[20]; newCategory: Code[20]; modified: DateTime)
     var
         oldCategory: Code[20];
@@ -472,6 +520,7 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('PhotographyPickerInstructions');
         features.Add('BCUserNotes');
         features.Add('BCApplications');
+        features.Add('Visibility');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -655,7 +704,8 @@ codeunit 50368 PerfionDataSyncIn
             { "id": "PictureLocation"},
             { "id": "PhotographyPickerInstructions"},
             { "id": "BCUserNotes"},
-            { "id": "BCApplications"}
+            { "id": "BCApplications"},
+            { "id": "Visibility"}
         ]
       },
         "From": [ 
@@ -665,30 +715,30 @@ codeunit 50368 PerfionDataSyncIn
          "Clauses": [ 
              { "Clause": { "id": "brand", "operator": "=", "value": "Normal" } },
              { "Clause": { "id": "BCItemType", "operator": "IN", "value": [ "Assembly", "Prod. Order", "Purchase" ] } },
-             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }},
+             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }},
              { "Or": {} },
-             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
             { "Or": {} },
-             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "BCUserNotes.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "BCUserNotes.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              },
              { "Or": {} },
-             { "Clause": { "id": "BCApplications.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-12 19:01:44", "2024-11-12 21:36:08" ] }
+             { "Clause": { "id": "BCApplications.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
              }
          ]
       }

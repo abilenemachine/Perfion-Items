@@ -14,4 +14,5 @@ enum 50191 PerfionValueType
     value(9; PictureInstructions) { }
     value(10; UserNotes) { }
     value(11; Applications) { }
+    value(12; Visibility) { }
 }
