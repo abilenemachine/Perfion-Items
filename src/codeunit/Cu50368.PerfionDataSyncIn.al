@@ -2,9 +2,15 @@ codeunit 50368 PerfionDataSyncIn
 {
     trigger OnRun()
 
+    var
+        perfionSyncOut: Record PerfionDataSyncOut;
+
     begin
         //NOTE - currDateTime is always in EST Time because it is based on my time zone
         currDateTime := CurrentDateTime;
+
+        perfionSyncOut.Get();
+        lastPerfionSync := perfionSyncOut.LastSync;
 
         if perfionConfig.Get() then begin
             //LOGIC - For the last sync of the day, run a full sync with no date filters
@@ -190,19 +196,23 @@ codeunit 50368 PerfionDataSyncIn
                         updateCoreData(itemNum, tempCoreResource, tempCoreValue, tempItemDateModified)
                     else
                         updateCoreData(itemNum, '', 0, tempItemDateModified);
+
                     if hasPicInstructions then
                         updatePictureInstructions(itemNum, tempPicInstructions, tempItemDateModified)
                     else
                         updatePictureInstructions(itemNum, '', tempItemDateModified);
+
                     if hasUserNotes then
                         updateItemUserNotes(itemNum, tempUserNotes, modifiedDateTime)
                     else
-                        updateItemUserNotes(itemNum, '', modifiedDateTime);
+                        if not WasFieldModifiedAfterSync(itemNum, 'User Notes', lastPerfionSync) then
+                            updateItemUserNotes(itemNum, '', modifiedDateTime);
+
                     if hasApplications then
                         updateItemApplications(itemNum, tempApplications, modifiedDateTime)
                     else
-                        updateItemApplications(itemNum, '', modifiedDateTime)
-
+                        if not WasFieldModifiedAfterSync(itemNum, 'Application', lastPerfionSync) then
+                            updateItemApplications(itemNum, '', modifiedDateTime);
                 end;
 
             end;
@@ -265,11 +275,23 @@ codeunit 50368 PerfionDataSyncIn
         end;
     end;
 
+    local procedure WasFieldModifiedAfterSync(itemNo: Code[20]; fieldCaption: Text; lastSync: DateTime): Boolean
+    var
+        changeLogEntry: Record "Change Log Entry";
+    begin
+        changeLogEntry.SetRange("Table Caption", 'Item');
+        changeLogEntry.SetRange("Field Caption", fieldCaption);
+        changeLogEntry.SetRange("Primary Key Field 1 Value", itemNo);
+        changeLogEntry.SetFilter("Date and Time", '>%1', lastSync);
+
+        exit(changeLogEntry.FindFirst());
+    end;
+
+
     local procedure updateItemUserNotes(itemNo: Code[20]; newUserNotes: Text; modified: DateTime)
     var
         oldUserNotes: Text;
         recItem: Record Item;
-
     begin
         recItem.Reset();
         recItem.SetFilter("No.", itemNo);
@@ -681,6 +703,7 @@ codeunit 50368 PerfionDataSyncIn
         currDateTime: DateTime;
         perfionConfig: Record PerfionConfig;
         logManager: Codeunit LogManager;
+        lastPerfionSync: DateTime;
 
     /*
 

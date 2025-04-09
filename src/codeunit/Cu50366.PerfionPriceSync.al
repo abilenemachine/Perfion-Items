@@ -97,14 +97,14 @@ codeunit 50366 PerfionPriceSync
         index: Integer;
         priceListHeader: Record "Price List Header";
         priceMgmt: Codeunit "Price List Management";
-
+        hasPricing: Boolean;
     begin
-
         arrPriceType[1] := 'W05Calculated';
         arrPriceType[2] := 'W1Calculated';
         arrPriceType[3] := 'W2Calculated';
         arrPriceType[4] := 'W3Calculated';
         arrPriceType[5] := 'W4Calculated';
+
         if responseObject.ReadFrom(response) then begin
             responseObject.SelectToken('Data', dataToken);
             dataToken.SelectToken('totalCount', totalToken);
@@ -112,7 +112,6 @@ codeunit 50366 PerfionPriceSync
             if totalToken.AsValue().AsInteger() = 0 then begin
                 perfionPriceSync.Processed := changeCount;
                 perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();
-                //LOGIC - Update the last sync time
                 perfionPriceSync.LastSync := currDateTime;
                 perfionPriceSync.Modify();
             end;
@@ -120,6 +119,11 @@ codeunit 50366 PerfionPriceSync
             dataToken.SelectToken('Items', itemsToken);
 
             foreach itemsToken in itemsToken.AsArray() do begin
+                // Clear arrays before processing each item
+                Clear(arrPrice);
+                Clear(arrDateTime);
+                hasPricing := false; // Reset pricing flag
+
                 itemsToken.SelectToken('Values', valuesToken);
                 if valuesToken.AsArray().Count > 0 then begin
                     valuesToken.AsArray().Get(0, valueItemToken);
@@ -129,10 +133,10 @@ codeunit 50366 PerfionPriceSync
                     itemNum := itemNumToken.AsValue().AsCode();
 
                     if checkItem(itemNum) then begin
-
                         foreach valuesToken in valuesToken.AsArray() do begin
                             valuesToken.SelectToken('featureId', featureId);
                             if featureId.AsValue().AsInteger() <> 100 then begin
+                                hasPricing := true; // Mark that pricing exists
 
                                 Clear(modifiedDateTimeText);
                                 Clear(modifiedDate);
@@ -177,15 +181,16 @@ codeunit 50366 PerfionPriceSync
                                     'W4MaxDiscount':
                                         arrDateTime[5] := modifiedDateTimeText;
                                 end;
-
-
                             end;
                         end;
 
-                        for index := 1 to 5 do
-                            updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
+                        // Skip processing if no pricing was found for the item
+                        if hasPricing then begin
+                            for index := 1 to 5 do
+                                updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
+                        end;
                     end;
-                end
+                end;
             end;
         end;
 
