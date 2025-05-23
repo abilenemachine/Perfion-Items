@@ -62,7 +62,8 @@ page 50150 perfionItem
 
                 field("SalesUom"; Rec."Sales Unit of Measure") { }
                 field("PurchUom"; Rec."Purch. Unit of Measure") { }
-                field(QtyPerUom; Rec."Qty per UOM") { }
+                field(QtyPerUomPurch; Rec."Qty per UOM Purch") { }
+                field(QtyPerUomSales; Rec."Qty per UOM Sales") { }
 
             }
         }

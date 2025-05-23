@@ -17,7 +17,8 @@ codeunit 50363 PerfionDataSyncOut
         recPerfionItems.DeleteAll;
 
         bcItems.SetRange(Type, Enum::"Item Type"::Inventory);
-        bcItems.SetRange("Add To Perfion", true);
+        //bcItems.SetRange("Add To Perfion", true);
+        bcItems.SetRange(PerfionSync, Enum::PerfionSyncStatus::Accepted);
         //bcItems.SetFilter("No.", 'AMAR26497-U');
         //bcItems.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMGLUE', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
 
@@ -44,7 +45,8 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.Weight := ItemUOM.Weight;
                 recPerfionItems.Cubage := ItemUOM.Cubage;
 
-                recPerfionItems."Qty per UOM" := getQtyPerUom(bcItems."No.", bcItems."Purch. Unit of Measure");
+                recPerfionItems."Qty per UOM Purch" := getQtyPerUom(bcItems."No.", bcItems."Purch. Unit of Measure");
+                recPerfionItems."Qty per UOM Sales" := getQtyPerUom(bcItems."No.", bcItems."Sales Unit of Measure");
 
                 recPerfionItems.NMFC := bcItems."IWX LTL NMFC";
                 recPerfionItems."Freight Density" := bcItems."IWX LTL Freight Density";

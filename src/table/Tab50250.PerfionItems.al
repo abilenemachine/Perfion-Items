@@ -204,9 +204,14 @@ table 50250 PerfionItems
             DecimalPlaces = 0 : 5;
         }
 
-        field(79; "Qty per UOM"; Decimal)
+        field(78; "Qty per UOM Sales"; Decimal)
         {
-            Caption = 'Quantity Per Unit of Measure';
+            Caption = 'Quantity Per Unit of Measure Sales';
+            DecimalPlaces = 0 : 5;
+        }
+        field(79; "Qty per UOM Purch"; Decimal)
+        {
+            Caption = 'Quantity Per Unit of Measure Purchase';
             DecimalPlaces = 0 : 5;
         }
 

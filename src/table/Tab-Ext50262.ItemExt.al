@@ -8,5 +8,14 @@ tableextension 50262 ItemPerfion extends Item
             FieldClass = Normal;
             Editable = false;
         }
+
+        field(50263; PerfionSync; Enum PerfionSyncStatus)
+        {
+            Caption = 'Perfion Sync Status';
+            FieldClass = Normal;
+            Editable = true;
+            InitValue = "For Review"; // sets the default
+        }
+
     }
 }

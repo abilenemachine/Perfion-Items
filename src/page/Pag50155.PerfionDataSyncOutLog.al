@@ -51,7 +51,8 @@ page 50155 PerfionDataSyncOutLog
 
                 field("Sales Unit of Measure"; Rec."Sales Unit of Measure") { }
                 field("Purch. Unit of Measure"; Rec."Purch. Unit of Measure") { }
-                field("Qty per UOM"; Rec."Qty per UOM") { }
+                field("Qty per UOM Purch"; Rec."Qty per UOM Purch") { }
+                field("Qty per UOM Sales"; Rec."Qty per UOM Sales") { }
             }
         }
     }
