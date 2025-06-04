@@ -24,7 +24,7 @@ page 50150 perfionItem
                 field(Blocked; Rec.Blocked) { }
                 field(Condition; Rec."Gen. Prod. Posting Group") { }
                 field(ItemCategoryCode; Rec."Item Category Code") { }
-
+                field(PefionPicture; Rec.PefionPicture) { }
                 field(DropShip; Rec."Drop Ship") { }
                 field(Length; Rec.Length) { }
                 field(Width; Rec.Width) { }

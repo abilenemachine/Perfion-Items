@@ -138,6 +138,14 @@ table 50250 PerfionItems
             MinValue = 0;
         }
 
+        field(28; PefionPicture; Enum PerfionPictureStatus)
+        {
+            Caption = 'Perfion Picture Status';
+            FieldClass = Normal;
+            Editable = true;
+            InitValue = "Unassigned"; // sets the default
+        }
+
         field(30; userNotes; Text[2048])
         {
             Caption = 'User Notes';

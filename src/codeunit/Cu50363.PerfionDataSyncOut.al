@@ -37,6 +37,8 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems."Sales Unit of Measure" := bcItems."Sales Unit of Measure";
                 recPerfionItems."Purch. Unit of Measure" := bcItems."Purch. Unit of Measure";
 
+                recPerfionItems.PefionPicture := bcItems.PerfionPicture;
+
                 ItemUOM.Reset();
                 ItemUOM := getUom(bcItems."No.");
                 recPerfionItems.Length := ItemUOM.Length;

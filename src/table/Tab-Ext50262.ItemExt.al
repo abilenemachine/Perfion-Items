@@ -17,5 +17,13 @@ tableextension 50262 ItemPerfion extends Item
             InitValue = "For Review"; // sets the default
         }
 
+        field(50264; PerfionPicture; Enum PerfionPictureStatus)
+        {
+            Caption = 'Perfion Picture Status';
+            FieldClass = Normal;
+            Editable = true;
+            InitValue = "Unassigned"; // sets the default
+        }
+
     }
 }

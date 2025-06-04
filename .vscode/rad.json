@@ -1,1 +1,1 @@
-﻿{"Added":[],"Modified":[],"Removed":[]}
+﻿{"Added":[{"Id":50198,"Kind":22,"Name":"PerfionPictureStatus","Namespace":""}],"Modified":[{"Id":50363,"Kind":11,"Name":"PerfionDataSyncOut","Namespace":""},{"Id":50250,"Kind":10,"Name":"PerfionItems","Namespace":""},{"Id":50150,"Kind":12,"Name":"perfionItem","Namespace":""},{"Id":50180,"Kind":16,"Name":"PerfionItemCard","Namespace":""},{"Id":50262,"Kind":17,"Name":"ItemPerfion","Namespace":""}],"Removed":[{"Id":50197,"Kind":22,"Name":"PerfionSyncStatus","Namespace":""}]}
