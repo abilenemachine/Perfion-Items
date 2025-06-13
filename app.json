@@ -1,8 +1,8 @@
 {
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
-  "name": "Perfion Items",
+  "name": "Perfion Integration",
   "publisher": "Abilene",
-  "version": "1.1.0.9",
+  "version": "1.1.0.11",
   "brief": "",
   "description": "Integration for syncing between Perfion, BC, and Magento",
   "privacyStatement": "",

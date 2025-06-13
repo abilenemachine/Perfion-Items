@@ -40,9 +40,9 @@ codeunit 50368 PerfionDataSyncIn
         IsLater := CurrentTime >= MyTime;
 
         if IsLater then
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'CheckTime true', Format(CurrentTime) + ' - ' + Format(MyTime))
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'CheckTime true', Format(CurrentTime) + ' - ' + Format(MyTime))
         else
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'CheckTime false', Format(CurrentTime) + ' - ' + Format(MyTime));
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'CheckTime false', Format(CurrentTime) + ' - ' + Format(MyTime));
 
 
         exit(IsLater); // Return the result
@@ -163,7 +163,7 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemDescription(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'SAGroup2' then
                                 updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'PictureLocation' then
+                            else if itemFeatureName.AsValue().AsText() = 'PerfionPictureStatus' then
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'Visibility' then
                                 updateItemVisibility(itemNum, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime)
@@ -331,24 +331,54 @@ codeunit 50368 PerfionDataSyncIn
         end;
     end;
 
-    local procedure updateItemPicture(itemNo: Code[20]; newLocation: Text; modified: DateTime)
+    local procedure updateItemPicture(itemNo: Code[20]; newStatusText: Text; modified: DateTime)
     var
         recItem: Record Item;
-
+        oldStatus: Enum "PerfionPictureStatus";
+        newStatus: Enum "PerfionPictureStatus";
     begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
+        recItem.SetRange("No.", itemNo);
         if recItem.FindFirst() then begin
-            if newLocation <> '' then begin
-                if recItem.NeedPicture <> false then begin
-                    recItem.NeedPicture := false;
-                    if recItem.Modify() then begin
-                        dataLogHandler.LogItemUpdate(itemNo, PadStr(newLocation, 200), '', Enum::PerfionValueType::Picture, modified);
-                        changeCount += 1;
-                    end
-                    else
-                        logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemPicture', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-                end;
+
+            // Convert Text to Enum
+            case newStatusText of
+                'Unassigned':
+                    newStatus := PerfionPictureStatus::"Unassigned";
+                'Needed':
+                    newStatus := PerfionPictureStatus::"Needed";
+                'Completed':
+                    newStatus := PerfionPictureStatus::"Completed";
+                'Excluded':
+                    newStatus := PerfionPictureStatus::"Excluded";
+                'Retake Needed':
+                    newStatus := PerfionPictureStatus::"Retake Needed";
+                else
+                    Error('Invalid Perfion Picture Status value: %1', newStatusText);
+            end;
+
+            if recItem.PerfionPicture <> newStatus then begin
+                oldStatus := recItem.PerfionPicture;
+                recItem.PerfionPicture := newStatus;
+
+                if recItem.Modify() then
+                    dataLogHandler.LogItemUpdate(
+                        itemNo,
+                        Format(newStatus), // log as text
+                        'updateItemPicture',
+                        Enum::PerfionValueType::Picture,
+                        modified
+                    )
+                else
+                    logManager.logError(
+                        Enum::AppCode::Perfion,
+                        Enum::AppProcess::"Data Sync In",
+                        'updateItemPicture',
+                        Enum::ErrorType::Catch,
+                        itemNo,
+                        GetLastErrorText()
+                    );
+
+                changeCount += 1;
             end;
         end;
     end;

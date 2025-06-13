@@ -19,7 +19,7 @@ pageextension 50180 PerfionItemCard extends "Item Card"
                 ApplicationArea = All;
                 ToolTip = 'Indicates the picture status with Perfion.';
                 Visible = true;
-                Editable = IsEditable;
+                Editable = false;
             }
         }
 
@@ -30,7 +30,7 @@ pageextension 50180 PerfionItemCard extends "Item Card"
 
     trigger OnOpenPage()
     begin
-        if UserId in ['TJROELOFSEN', 'ABAKER', 'BCOCHRAN', 'WMARKLEY', 'HDEVINE', 'PMYLES', 'SSHOLTZ'] then
+        if UserId in ['ABAKER', 'BCOCHRAN', 'WMARKLEY', 'HDEVINE', 'PMYLES'] then
             IsEditable := true
         else
             IsEditable := false;
