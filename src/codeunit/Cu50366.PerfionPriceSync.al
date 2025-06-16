@@ -98,9 +98,6 @@ codeunit 50366 PerfionPriceSync
         priceListHeader: Record "Price List Header";
         priceMgmt: Codeunit "Price List Management";
         hasPricing: Boolean;
-        salesUom: Code[10];
-        setQty: Decimal;
-
     begin
         arrPriceType[1] := 'W05Calculated';
         arrPriceType[2] := 'W1Calculated';
@@ -136,13 +133,6 @@ codeunit 50366 PerfionPriceSync
                     itemNum := itemNumToken.AsValue().AsCode();
 
                     if checkItem(itemNum) then begin
-
-                        salesUom := getSalesUom(itemNum);
-                        if salesUom = 'SET' then
-                            setQty := getQtyPerUom(itemNum, 'SET')
-                        else
-                            setQty := 0;
-
                         foreach valuesToken in valuesToken.AsArray() do begin
                             valuesToken.SelectToken('featureId', featureId);
                             if featureId.AsValue().AsInteger() <> 100 then begin
@@ -167,19 +157,9 @@ codeunit 50366 PerfionPriceSync
 
                                 case priceType of
                                     'RetailPrice':
-                                        begin
-                                            updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
-                                            if salesUom = 'SET' then
-                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET');
-                                        end;
-
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
                                     'Wholesale':
-                                        begin
-                                            updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
-                                            if salesUom = 'SET' then
-                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET');
-                                        end;
-
+                                        updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText);
                                     'W05Calculated':
                                         arrPrice[1] := priceAmount;
                                     'W1Calculated':
@@ -206,11 +186,8 @@ codeunit 50366 PerfionPriceSync
 
                         // Skip processing if no pricing was found for the item
                         if hasPricing then begin
-                            for index := 1 to 5 do begin
-                                updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index], 'EACH');
-                                if salesUom = 'SET' then
-                                    updatePriceListLine(itemNum, arrPrice[index] * setQty, arrPriceType[index], arrDateTime[index], 'SET');
-                            end;
+                            for index := 1 to 5 do
+                                updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index]);
                         end;
                     end;
                 end;
@@ -254,18 +231,16 @@ codeunit 50366 PerfionPriceSync
             exit(true);
     end;
 
-    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; uomCode: Code[10])
+    local procedure updatePriceListLine(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text)
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
-        recItem: Record Item;
 
     begin
         priceList.Reset();
         priceList.SetRange("Price List Code", currentPriceList);
         priceList.SetFilter("Product No.", itemNo);
         priceList.SetFilter("Source No.", getPriceGroup(priceGroup));
-        priceList.SetRange("Unit of Measure Code", uomCode);
         if priceList.FindFirst() then begin
             if priceList."Unit Price" <> price then begin
                 originalPrice := priceList."Unit Price";
@@ -280,13 +255,13 @@ codeunit 50366 PerfionPriceSync
             end;
         end
         else
-            if not insertPrice(itemNo, price, priceGroup, modified, originalPrice, uomCode) then
+            if not insertPrice(itemNo, price, priceGroup, modified, originalPrice) then
                 logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'PriceInsert', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
 
     end;
 
     [TryFunction]
-    local procedure insertPrice(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; originalPrice: Decimal; uomCode: Code[10])
+    local procedure insertPrice(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; originalPrice: Decimal)
     var
         priceList: Record "Price List Line";
 
@@ -306,7 +281,7 @@ codeunit 50366 PerfionPriceSync
         priceList."Asset Type" := "Price Asset Type"::Item;
         priceList."Product No." := itemNo;
         priceList."Asset No." := itemNo;
-        priceList."Unit of Measure Code" := uomCode;
+        priceList."Unit of Measure Code" := 'EACH';
         priceList.Validate("Product No.");
         priceList."Amount Type" := "Price Amount Type"::Price;
         priceList."Price Type" := "Price Type"::Sale;
@@ -549,24 +524,6 @@ codeunit 50366 PerfionPriceSync
     local procedure getToTimeText(): Text
     begin
         exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
-    end;
-
-    local procedure getSalesUom(itemNo: Code[20]): Code[10]
-    var
-        Item: Record Item;
-    begin
-        if Item.Get(itemNo) then
-            exit(Item."Sales Unit of Measure");
-    end;
-
-    local procedure getQtyPerUom(itemNo: Code[20]; uomCode: Code[10]): Decimal
-    var
-        ItemUOM: Record "Item Unit of Measure";
-    begin
-        ItemUOM.SetRange("Item No.", itemNo);
-        ItemUOM.SetRange(Code, uomCode);
-        if ItemUOM.FindFirst() then
-            exit(ItemUOM."Qty. per Unit of Measure");
     end;
 
 
