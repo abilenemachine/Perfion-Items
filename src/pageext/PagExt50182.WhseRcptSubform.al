@@ -1,8 +1,7 @@
-pageextension 50181 WhseRcptSubform extends "Whse. Receipt Subform"
+pageextension 50182 WhseRcptSubform extends "Whse. Receipt Subform"
 {
     layout
     {
-
     }
     trigger OnAfterGetRecord()
     var
