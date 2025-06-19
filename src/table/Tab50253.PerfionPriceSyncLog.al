@@ -21,6 +21,10 @@ table 50253 PerfionPriceSyncLog
         {
             Editable = true;
         }
+        field(5; "UOM"; Code[10])
+        {
+            Editable = true;
+        }
         field(10; "Last Modified"; Text[20])
         {
             Editable = true;

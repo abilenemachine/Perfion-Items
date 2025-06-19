@@ -30,6 +30,10 @@ page 50153 PerfionPriceSyncLog
                 {
                     ApplicationArea = All;
                 }
+                field("UOM"; Rec.UOM)
+                {
+                    ApplicationArea = All;
+                }
                 field("Last Modified"; Rec."Last Modified")
                 {
                     ApplicationArea = All;

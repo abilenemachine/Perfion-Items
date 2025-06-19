@@ -353,7 +353,14 @@ codeunit 50368 PerfionDataSyncIn
                 'Retake Needed':
                     newStatus := PerfionPictureStatus::"Retake Needed";
                 else
-                    Error('Invalid Perfion Picture Status value: %1', newStatusText);
+                    logManager.logError(
+                        Enum::AppCode::Perfion,
+                        Enum::AppProcess::"Data Sync In",
+                        'updateItemPicture Enum Conversion',
+                        Enum::ErrorType::Catch,
+                        itemNo,
+                        GetLastErrorText()
+                    );
             end;
 
             if recItem.PerfionPicture <> newStatus then begin
@@ -568,7 +575,7 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('Core');
         features.Add('CoreResourceName');
         features.Add('Category');
-        features.Add('PictureLocation');
+        features.Add('PerfionPictureStatus');
         features.Add('PhotographyPickerInstructions');
         features.Add('BCUserNotes');
         features.Add('BCApplications');

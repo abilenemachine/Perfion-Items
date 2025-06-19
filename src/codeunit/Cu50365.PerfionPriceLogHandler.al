@@ -9,7 +9,7 @@ codeunit 50365 PerfionPriceLogHandler
     end;
 
 
-    procedure logItemUpdate(itemNo: Code[20]; ogPrice: Decimal; updatedPrice: Decimal; priceGroup: Code[20]; lastModified: Text[20])
+    procedure logItemUpdate(itemNo: Code[20]; ogPrice: Decimal; updatedPrice: Decimal; priceGroup: Code[20]; uomCode: Code[10]; lastModified: Text[20])
     var
         PerfionItemLog: Record PerfionPriceSyncLog;
     begin
@@ -20,6 +20,7 @@ codeunit 50365 PerfionPriceLogHandler
         PerfionItemLog."Original Price" := ogPrice;
         PerfionItemLog."Updated Price" := updatedPrice;
         PerfionItemLog."Price Group" := priceGroup;
+        PerfionItemLog.UOM := uomCode;
         PerfionItemLog."Last Modified" := lastModified;
         PerfionItemLog."Last Updated" := CurrentDateTime;
         StartSession(SessionID, Codeunit::PerfionPriceLogHandler, CompanyName, PerfionItemLog);
