@@ -36,7 +36,7 @@ table 50253 PerfionPriceSyncLog
     }
     keys
     {
-        key(Key1; "Item No.", "Price Group", "Last Updated")
+        key(Key1; "Item No.", "Price Group", UOM, "Last Updated")
         {
             Clustered = true;
         }

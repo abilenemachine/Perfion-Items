@@ -218,10 +218,8 @@ codeunit 50366 PerfionPriceSync
         end;
 
         priceListHeader.Get(currentPriceList);
-        if changeCount > 0 then begin
-            if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
-                logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorText());
-        end;
+        if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorText());
 
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();

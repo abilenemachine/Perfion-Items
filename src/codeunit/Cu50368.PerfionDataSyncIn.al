@@ -371,7 +371,7 @@ codeunit 50368 PerfionDataSyncIn
                     dataLogHandler.LogItemUpdate(
                         itemNo,
                         Format(newStatus), // log as text
-                        'updateItemPicture',
+                        Format(oldStatus),
                         Enum::PerfionValueType::Picture,
                         modified
                     )
