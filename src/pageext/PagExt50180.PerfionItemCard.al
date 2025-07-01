@@ -30,7 +30,7 @@ pageextension 50180 PerfionItemCard extends "Item Card"
 
     trigger OnOpenPage()
     begin
-        if UserId in ['ABAKER', 'BCOCHRAN', 'WMARKLEY', 'HDEVINE', 'PMYLES'] then
+        if UserId in ['ABAKER', 'BCOCHRAN', 'WMARKLEY', 'HDEVINE', 'PMYLES', 'TJROELOFSEN'] then
             IsEditable := true
         else
             IsEditable := false;

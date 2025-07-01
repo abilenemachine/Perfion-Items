@@ -2,7 +2,7 @@
   "id": "2f961722-afe5-4c4d-80dc-e390117770a0",
   "name": "Perfion Integration",
   "publisher": "Abilene",
-  "version": "1.1.0.17",
+  "version": "1.1.0.18",
   "brief": "",
   "description": "Integration for syncing between Perfion, BC, and Magento",
   "privacyStatement": "",
@@ -79,8 +79,8 @@
     }
   ],
   "screenshots": [],
-  "platform": "1.0.0.0",
-  "application": "21.0.0.0",
+  "platform": "25.0.0.0",
+  "application": "25.5.0.0",
   "idRanges": [
     {
       "from": 50100,
@@ -92,7 +92,7 @@
     "allowDownloadingSource": true,
     "includeSourceInSymbolFile": true
   },
-  "runtime": "12.0",
+  "runtime": "14.3",
   "features": [
     "NoImplicitWith"
   ]
