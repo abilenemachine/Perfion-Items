@@ -24,6 +24,24 @@ tableextension 50262 ItemPerfion extends Item
             Editable = true;
             InitValue = "Unassigned"; // sets the default
         }
+        field(50265; SlsMgrEnrichStatus; Enum PerfionSlsMgrEnrichStatus)
+        {
+            Caption = 'Sales Manager Enrichment Status';
+            FieldClass = Normal;
+            Editable = false;
+        }
+        field(50266; PerfionUserNotes; Text[2048])
+        {
+            Caption = 'Perfion User Notes';
+            FieldClass = Normal;
+            Editable = false;
+        }
+        field(50267; PerfionCreatedOn; DateTime)
+        {
+            Caption = 'Perfion Created On';
+            FieldClass = Normal;
+            Editable = false;
+        }
 
     }
 }

@@ -87,12 +87,13 @@ codeunit 50368 PerfionDataSyncIn
         valuePriceToken: JsonToken;
         featureToken: JsonToken;
         itemNumToken: JsonToken;
-        itemDateModified: JsonToken;
+        itemDateModified, itemDateCreated : JsonToken;
         itemFeatureValue: JsonToken;
         itemFeatureName: JsonToken;
         featureId: JsonToken;
 
         modifiedDate: Date;
+        createdDate: Date;
         recItem: Record Item;
         hasCore, hasPicInstructions, hasApplications, hasUserNotes : Boolean;
         itemNum: Code[20];
@@ -141,6 +142,11 @@ codeunit 50368 PerfionDataSyncIn
                     Clear(tempPicInstructions);
                     Clear(tempApplications);
                     Clear(tempUserNotes);
+
+                    Clear(createdDate);
+                    itemsToken.SelectToken('createdDate', itemDateCreated);
+                    createdDate := DT2Date(itemDateCreated.AsValue().AsDateTime());
+
                     //NOTE - Loop through all attributes. The first is the item number (featureId:100)
 
                     foreach valuesToken in valuesToken.AsArray() do begin
@@ -167,6 +173,10 @@ codeunit 50368 PerfionDataSyncIn
                                 updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'Visibility' then
                                 updateItemVisibility(itemNum, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'P1SalesManagerEnrichStatus' then
+                                updateEnrichStatus(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
+                            else if itemFeatureName.AsValue().AsText() = 'USERNotes' then
+                                updatePerfionUserNotes(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
                             else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then begin
                                 hasUserNotes := true;
                                 tempUserNotes := itemFeatureValue.AsValue().AsText();
@@ -250,6 +260,28 @@ codeunit 50368 PerfionDataSyncIn
         end
         else
             exit(true);
+    end;
+
+    local procedure updatePerfionCreatedOn(itemNo: Code[20]; newCreatedOn: DateTime; modified: DateTime)
+    var
+        oldCreatedOn: DateTime;
+        recItem: Record Item;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if recItem.PerfionCreatedOn < newCreatedOn then begin
+                oldCreatedOn := recItem.PerfionCreatedOn;
+                recItem.PerfionCreatedOn := newCreatedOn;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, Format(newCreatedOn), Format(oldCreatedOn), Enum::PerfionValueType::PerfionCreatedOn, modified);
+                    changeCount += 1;
+                end
+                else
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePerfionCreatedOn', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
+            end;
+        end;
     end;
 
 
@@ -403,11 +435,88 @@ codeunit 50368 PerfionDataSyncIn
                 oldInstructions := recItem.PictureInstructions;
                 recItem.PictureInstructions := newInstructions;
                 if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newInstructions, 200), oldInstructions, Enum::PerfionValueType::PictureInstructions, modified);
+                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newInstructions, 400), oldInstructions, Enum::PerfionValueType::PictureInstructions, modified);
                     changeCount += 1;
                 end
                 else
                     logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePictureInstructions', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
+    local procedure updatePerfionUserNotes(itemNo: Code[20]; newNotes: Text; modified: DateTime)
+    var
+        recItem: Record Item;
+        oldNotes: Text;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            if recItem.PerfionUserNotes <> newNotes then begin
+                oldNotes := recItem.PerfionUserNotes;
+                recItem.PerfionUserNotes := newNotes;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newNotes, 2048), oldNotes, Enum::PerfionValueType::PerfionUserNotes, modified);
+                    changeCount += 1;
+                end
+                else
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePerfionUserNotes', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
+            end;
+        end;
+    end;
+
+
+    local procedure updateEnrichStatus(itemNo: Code[20]; newStatus: Text; modified: DateTime)
+    var
+        oldStatus: Enum PerfionSlsMgrEnrichStatus;
+        recItem: Record Item;
+        enumStatus: Enum PerfionSlsMgrEnrichStatus;
+        oldStatusText: Text;
+        newStatusText: Text;
+
+    begin
+        recItem.Reset();
+        recItem.SetFilter("No.", itemNo);
+        if recItem.FindFirst() then begin
+            // Get the current status value
+            oldStatus := recItem.SlsMgrEnrichStatus;
+            // Convert incoming integer to enum value
+            case newStatus of
+                'Work':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Work;
+                'Review':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Review;
+                'Paused':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Paused;
+                'Rejected':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Rejected;
+                'Reject from Workflow':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Reject from Workflow";
+                'Paused for Later Project':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Paused for Later Project";
+                'Complete':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Complete;
+                'N/A':
+                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"N/A";
+                else begin
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateEnrichStatus', Enum::ErrorType::Catch, itemNo, 'Invalid Enrich Status value: ' + Format(newStatus));
+                    exit;
+                end;
+            end;
+
+            // Convert enum values to text
+            oldStatusText := Format(oldStatus);
+            newStatusText := Format(enumStatus);
+
+            if oldStatus <> enumStatus then begin
+                recItem.SlsMgrEnrichStatus := enumStatus;
+                if recItem.Modify() then begin
+                    dataLogHandler.LogItemUpdate(itemNo, newStatusText, oldStatusText, Enum::PerfionValueType::SlsMgrEnrichStatus, modified);
+                    changeCount += 1;
+                end
+                else
+                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateEnrichStatus', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
             end;
         end;
     end;
@@ -580,6 +689,8 @@ codeunit 50368 PerfionDataSyncIn
         features.Add('BCUserNotes');
         features.Add('BCApplications');
         features.Add('Visibility');
+        features.Add('P1SalesManagerEnrichStatus');
+        features.Add('USERNotes');
     end;
 
     local procedure buildFeatures(): JsonArray
@@ -765,7 +876,9 @@ codeunit 50368 PerfionDataSyncIn
             { "id": "PhotographyPickerInstructions"},
             { "id": "BCUserNotes"},
             { "id": "BCApplications"},
-            { "id": "Visibility"}
+            { "id": "Visibility"},
+            { "id": "P1SalesManagerEnrichStatus"},
+            { "id": "USERNotes"}
         ]
       },
         "From": [ 

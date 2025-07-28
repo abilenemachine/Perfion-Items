@@ -15,4 +15,7 @@ enum 50191 PerfionValueType
     value(10; UserNotes) { }
     value(11; Applications) { }
     value(12; Visibility) { }
+    value(13; SlsMgrEnrichStatus) { }
+    value(14; PerfionUserNotes) { }
+    value(15; PerfionCreatedOn) { }
 }

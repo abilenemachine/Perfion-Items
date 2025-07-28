@@ -168,18 +168,19 @@ codeunit 50366 PerfionPriceSync
                                 case priceType of
                                     'RetailPrice':
                                         begin
-                                            updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
                                             if salesUom = 'SET' then
-                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET');
+                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET')
+                                            else
+                                                updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
                                         end;
 
                                     'Wholesale':
                                         begin
-                                            updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
                                             if salesUom = 'SET' then
-                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET');
+                                                updatePriceListLine(itemNum, priceAmount * setQty, priceType, modifiedDateTimeText, 'SET')
+                                            else
+                                                updatePriceListLine(itemNum, priceAmount, priceType, modifiedDateTimeText, 'EACH');
                                         end;
-
                                     'W05Calculated':
                                         arrPrice[1] := priceAmount;
                                     'W1Calculated':
@@ -207,9 +208,10 @@ codeunit 50366 PerfionPriceSync
                         // Skip processing if no pricing was found for the item
                         if hasPricing then begin
                             for index := 1 to 5 do begin
-                                updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index], 'EACH');
                                 if salesUom = 'SET' then
-                                    updatePriceListLine(itemNum, arrPrice[index] * setQty, arrPriceType[index], arrDateTime[index], 'SET');
+                                    updatePriceListLine(itemNum, arrPrice[index] * setQty, arrPriceType[index], arrDateTime[index], 'SET')
+                                else
+                                    updatePriceListLine(itemNum, arrPrice[index], arrPriceType[index], arrDateTime[index], 'EACH');
                             end;
                         end;
                     end;
@@ -218,7 +220,8 @@ codeunit 50366 PerfionPriceSync
         end;
 
         priceListHeader.Get(currentPriceList);
-        if not priceMgmt.ActivateDraftLines(priceListHeader, true) then
+        if not TryActivatePriceList(priceListHeader) then
+            // If the TryFunction returns false (because an error was caught), this code will now run!
             logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorText());
 
         perfionPriceSync.Processed := changeCount;
@@ -229,6 +232,14 @@ codeunit 50366 PerfionPriceSync
 
         perfionConfig.fullSync := false;
         perfionConfig.Modify();
+    end;
+
+    [TryFunction]
+    local procedure TryActivatePriceList(PriceListHeader: Record "Price List Header")
+    var
+        PriceListManagement: Codeunit "Price List Management";
+    begin
+        PriceListManagement.ActivateDraftLines(PriceListHeader, true);
     end;
 
     local procedure checkItem(itemNo: Code[20]): Boolean
