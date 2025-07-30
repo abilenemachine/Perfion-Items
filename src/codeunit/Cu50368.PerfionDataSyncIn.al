@@ -102,7 +102,7 @@ codeunit 50368 PerfionDataSyncIn
         tempItemDateModified: DateTime;
         tempApplications: Text[2048];
         tempUserNotes: Text[2048];
-        modifiedDateTime: DateTime;
+        modifiedDateTime, createdDateTime : DateTime;
         tempPicInstructions: Text[400];
 
     begin
@@ -144,8 +144,10 @@ codeunit 50368 PerfionDataSyncIn
                     Clear(tempUserNotes);
 
                     Clear(createdDate);
+                    Clear(createdDateTime);
                     itemsToken.SelectToken('createdDate', itemDateCreated);
                     createdDate := DT2Date(itemDateCreated.AsValue().AsDateTime());
+                    createdDateTime := itemDateCreated.AsValue().AsDateTime();
 
                     //NOTE - Loop through all attributes. The first is the item number (featureId:100)
 
@@ -164,6 +166,8 @@ codeunit 50368 PerfionDataSyncIn
                             valuesToken.SelectToken('value', itemFeatureValue);
                             valuesToken.SelectToken('featureName', itemFeatureName);
                             modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+
+                            updatePerfionCreatedOn(itemNum, createdDateTime, modifiedDateTime);
 
                             if itemFeatureName.AsValue().AsText() = 'PartNameProductDescription' then
                                 updateItemDescription(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
