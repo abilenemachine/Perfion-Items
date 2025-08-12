@@ -9,6 +9,7 @@ codeunit 50363 PerfionDataSyncOut
         changeCount: Integer;
         ItemUOM: Record "Item Unit of Measure";
         Profiler: Codeunit AbileneProfiler;
+        ProfilerConfig: Codeunit AmProfilerConfig;
         t: Time;
         tOnRun: Time;     // <- outer scope timer
         startTime, endTime : Time;
@@ -16,7 +17,7 @@ codeunit 50363 PerfionDataSyncOut
         logManager: Codeunit LogManager;
     begin
         startTime := Time;
-        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", true, 250); // enable=true, log details only if >=200ms
+        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", ProfilerConfig.IsEnabled(), ProfilerConfig.GetThresholdSec());
         Profiler.Start('onRun', tOnRun);
         recPerfionItems.Reset();
         recPerfionItems.DeleteAll();
@@ -41,7 +42,6 @@ codeunit 50363 PerfionDataSyncOut
             "Last DateTime Modified", "Assembly BOM"
         );
 
-        InitItemsInScope(bcItems);
         InitUnsellableBins(); // builds the bin set
         Profiler.Start('PreloadUnsellableTotals', t);
         PreloadUnsellableTotals('KS|SC|SD|MT'); // scans Bin Content once and fills totals
@@ -151,7 +151,6 @@ codeunit 50363 PerfionDataSyncOut
         IsUnsellableInit: Boolean;
         UnsellableBins: Dictionary of [Code[20], Boolean]; // set of bin codes
         UnsellableTotals: Dictionary of [Text, Decimal];   // key: ItemNo|Location
-        ItemsInScope: Dictionary of [Code[20], Boolean];   // items we’re processing
         UnsellableCacheReady: Boolean;
 
     local procedure InitUnsellableFilters()
@@ -178,17 +177,6 @@ codeunit 50363 PerfionDataSyncOut
         IsUnsellableInit := true;
     end;
 
-    local procedure InitItemsInScope(var bcItems: Record Item)
-    begin
-        Clear(ItemsInScope);
-        if bcItems.FindSet() then
-            repeat
-                if not ItemsInScope.ContainsKey(bcItems."No.") then
-                    ItemsInScope.Add(bcItems."No.", true);
-            until bcItems.Next() = 0;
-        bcItems.FindFirst(); // rewind for main processing
-    end;
-
     local procedure InitUnsellableBins()
     var
         UB: Record "Unsellable Bins";
@@ -208,7 +196,6 @@ codeunit 50363 PerfionDataSyncOut
         syncKey: Text[60];
         qty: Decimal;
         isUnsellable: Boolean;
-        itemInScope: Boolean;
     begin
         Clear(UnsellableTotals);
 
@@ -222,21 +209,17 @@ codeunit 50363 PerfionDataSyncOut
 
         if BC.FindSet() then
             repeat
-                // (old 'continue' replaced by an if-guard)
-                itemInScope := ItemsInScope.ContainsKey(BC."Item No.");
-                if itemInScope then begin
-                    // Mark as unsellable if in the explicit list OR dedicated (adjust to your rule)
-                    isUnsellable := UnsellableBins.ContainsKey(BC."Bin Code") or (BC.Dedicated and not UnsellableBins.ContainsKey(BC."Bin Code"));
+                // Mark as unsellable if in the explicit list OR dedicated (adjust to your rule)
+                isUnsellable := UnsellableBins.ContainsKey(BC."Bin Code") or (BC.Dedicated and not UnsellableBins.ContainsKey(BC."Bin Code"));
 
-                    if isUnsellable then begin
-                        syncKey := Format(BC."Item No.") + '|' + Format(BC."Location Code");
+                if isUnsellable then begin
+                    syncKey := Format(BC."Item No.") + '|' + Format(BC."Location Code");
 
-                        if UnsellableTotals.ContainsKey(syncKey) then begin
-                            qty := UnsellableTotals.Get(syncKey);
-                            UnsellableTotals.Set(syncKey, qty + BC.Quantity);
-                        end else
-                            UnsellableTotals.Add(syncKey, BC.Quantity);
-                    end;
+                    if UnsellableTotals.ContainsKey(syncKey) then begin
+                        qty := UnsellableTotals.Get(syncKey);
+                        UnsellableTotals.Set(syncKey, qty + BC.Quantity);
+                    end else
+                        UnsellableTotals.Add(syncKey, BC.Quantity);
                 end;
             until BC.Next() = 0;
 
@@ -421,46 +404,6 @@ codeunit 50363 PerfionDataSyncOut
             exit(UnsellableTotals.Get(syncKey));
         exit(0);
     end;
-
-    /*
-        procedure getUnsellableQty(itemNo: Code[20]; location: Code[10]) value: Decimal
-        var
-            binContent: Record "Bin Content";
-        begin
-
-            // Calculate FlowField automatically when we read the record
-            binContent.SetAutoCalcFields(Quantity);
-
-            // 1) Explicit unsellable bins
-            if UnsellableBinFilterIn <> '' then begin
-                binContent.Reset();
-                binContent.SetLoadFields("Item No.", "Location Code", "Bin Code", Quantity);
-                binContent.SetRange("Item No.", itemNo);
-                binContent.SetRange("Location Code", location);
-                binContent.SetFilter("Bin Code", UnsellableBinFilterIn);
-
-                if binContent.FindSet() then
-                    repeat
-                        value += binContent.Quantity;   // Quantity is FlowField, already calculated
-                    until binContent.Next() = 0;
-            end;
-
-            // 2) Dedicated bins that are NOT in the unsellable list
-            binContent.Reset();
-            binContent.SetLoadFields("Item No.", "Location Code", "Bin Code", Dedicated, Quantity);
-            binContent.SetRange("Item No.", itemNo);
-            binContent.SetRange("Location Code", location);
-            if UnsellableBinFilterNotIn <> '' then
-                binContent.SetFilter("Bin Code", UnsellableBinFilterNotIn);
-            binContent.SetRange(Dedicated, true);
-
-            if binContent.FindSet() then
-                repeat
-                    value += binContent.Quantity;
-                until binContent.Next() = 0;
-        end;
-
-    */
 
     procedure getLedgerQty(itemNo: Code[20]; location: code[10]) value: Decimal
     var

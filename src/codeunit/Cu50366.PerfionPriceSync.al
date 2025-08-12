@@ -144,6 +144,8 @@ codeunit 50366 PerfionPriceSync
                         else
                             setQty := 0;
 
+                        removeOtherUomPrices(itemNum, salesUom);
+
                         foreach valuesToken in valuesToken.AsArray() do begin
                             valuesToken.SelectToken('featureId', featureId);
                             if featureId.AsValue().AsInteger() <> 100 then begin
@@ -216,6 +218,7 @@ codeunit 50366 PerfionPriceSync
                             end;
                         end;
                     end;
+
                 end;
             end;
         end;
@@ -270,18 +273,22 @@ codeunit 50366 PerfionPriceSync
     var
         priceList: Record "Price List Line";
         originalPrice: Decimal;
-        recItem: Record Item;
+        assignToNo: Code[20];
 
     begin
+
+        assignToNo := getPriceGroup(priceGroup);
         priceList.Reset();
         priceList.SetRange("Price List Code", currentPriceList);
-        priceList.SetFilter("Product No.", itemNo);
-        priceList.SetFilter("Source No.", getPriceGroup(priceGroup));
+        priceList.SetRange("Product No.", itemNo);
+        PriceList.SetRange("Assign-to No.", assignToNo);
         priceList.SetRange("Unit of Measure Code", uomCode);
+
         if priceList.FindFirst() then begin
             if priceList."Unit Price" <> price then begin
                 originalPrice := priceList."Unit Price";
                 priceList."Unit Price" := price;
+                PriceList.Validate("Unit Price", price);
 
                 if priceList.Modify() then begin
                     priceLogHandler.logItemUpdate(itemNo, originalPrice, price, priceList."Source No.", uomCode, modified);
@@ -301,25 +308,30 @@ codeunit 50366 PerfionPriceSync
     local procedure insertPrice(itemNo: Code[20]; price: Decimal; priceGroup: Text; modified: Text; originalPrice: Decimal; uomCode: Code[10])
     var
         priceList: Record "Price List Line";
+        assignToNo: Code[20];
 
     begin
-        priceList.Reset();
+        assignToNo := getPriceGroup(priceGroup);
+
         priceList.Init();
         priceList."Price List Code" := currentPriceList;
+
+        priceList."Source Group" := "Price Source Group"::Customer;
+        priceList."Source Type" := "Price Source Type"::"Customer Price Group";
         priceList."Assign-to No." := getPriceGroup(priceGroup);
         priceList."Source No." := getPriceGroup(priceGroup);
         priceList."Line No." := getNextLineNo();
-
-        priceList."Source Type" := "Price Source Type"::"Customer Price Group";
         priceList.Status := "Price Status"::Draft;
-        priceList."Source Group" := "Price Source Group"::Customer;
 
-        priceList."Starting Date" := getPriceListStartDate(currentPriceList);
         priceList."Asset Type" := "Price Asset Type"::Item;
         priceList."Product No." := itemNo;
         priceList."Asset No." := itemNo;
-        priceList."Unit of Measure Code" := uomCode;
         priceList.Validate("Product No.");
+
+        priceList."Unit of Measure Code" := uomCode;
+        PriceList.Validate("Unit of Measure Code");
+
+        priceList."Starting Date" := getPriceListStartDate(currentPriceList);
         priceList."Amount Type" := "Price Amount Type"::Price;
         priceList."Price Type" := "Price Type"::Sale;
         priceList."Unit Price" := price;
@@ -331,6 +343,35 @@ codeunit 50366 PerfionPriceSync
         else
             logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'insertPrice', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
 
+    end;
+
+    local procedure removeOtherUomPrices(itemNo: Code[20]; targetUom: Code[10])
+    var
+        PriceList: Record "Price List Line";
+        otherUom: Code[10];
+    begin
+        if targetUom = 'SET' then
+            otherUom := 'EACH'
+        else
+            otherUom := 'SET';
+
+        PriceList.Reset();
+        PriceList.SetRange("Price List Code", currentPriceList);
+        PriceList.SetRange("Product No.", itemNo);
+        PriceList.SetRange("Unit of Measure Code", otherUom);
+
+        if PriceList.FindSet(true) then
+            repeat
+                if not PriceList.Delete() then
+                    logManager.logError(
+                        Enum::AppCode::Perfion,
+                        Enum::AppProcess::"Price Sync",
+                        'RemoveOtherUomPrices',
+                        Enum::ErrorType::Catch,
+                        itemNo,
+                        GetLastErrorText()
+                    );
+            until PriceList.Next() = 0;
     end;
 
     procedure getNextLineNo(): Integer

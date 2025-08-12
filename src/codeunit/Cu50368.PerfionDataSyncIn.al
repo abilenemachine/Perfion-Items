@@ -7,11 +7,12 @@ codeunit 50368 PerfionDataSyncIn
     trigger OnRun()
     var
         perfionSyncIn: Record PerfionDataSyncIn;
+        ProfilerConfig: Codeunit AmProfilerConfig;
         Profiler: Codeunit AbileneProfiler;
         t: Time;
         tOnRun: Time;
     begin
-        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", true, 250); // enable=true, log details only if >=200ms
+        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", ProfilerConfig.IsEnabled(), ProfilerConfig.GetThresholdSec());
         Profiler.Start('onRun', tOnRun);
         currDateTime := CurrentDateTime;
         if perfionSyncIn.Get() then
