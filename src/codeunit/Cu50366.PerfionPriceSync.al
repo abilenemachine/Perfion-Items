@@ -136,7 +136,8 @@ codeunit 50366 PerfionPriceSync
                     itemNum := itemNumToken.AsValue().AsCode();
 
                     if checkItem(itemNum) then begin
-
+                        Clear(salesUom);
+                        Clear(setQty);
                         salesUom := getSalesUom(itemNum);
                         if salesUom = 'SET' then
                             setQty := getQtyPerUom(itemNum, 'SET')
@@ -222,7 +223,7 @@ codeunit 50366 PerfionPriceSync
         priceListHeader.Get(currentPriceList);
         if not TryActivatePriceList(priceListHeader) then
             // If the TryFunction returns false (because an error was caught), this code will now run!
-            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorText());
+            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Price Sync", 'ActivateDraftLines', Enum::ErrorType::Crash, GetLastErrorCallStack());
 
         perfionPriceSync.Processed := changeCount;
         perfionPriceSync.TotalCount := totalToken.AsValue().AsInteger();

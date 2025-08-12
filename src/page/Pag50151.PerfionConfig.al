@@ -256,24 +256,6 @@ page 50151 PerfionConfig
 
             }
 
-            action("ClearDataOutLog")
-            {
-                ApplicationArea = All;
-                Caption = 'Clear Data Sync Out Log';
-                Image = ClearLog;
-                Promoted = true;
-
-                trigger OnAction()
-                var
-                    perfionLog: Record PerfionDataSyncOutLog;
-
-                begin
-                    perfionLog.DeleteAll();
-                    CurrPage.Update();
-                end;
-
-            }
-
             action("ClearDataInLog")
             {
                 ApplicationArea = All;

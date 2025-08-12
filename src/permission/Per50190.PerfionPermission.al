@@ -25,8 +25,6 @@ permissionset 50190 PerfionPermission
         codeunit PerfionDataSyncOut = X,
         table PerfionDataSyncOut = X,
         page PerfionDataSyncOut = X,
-        tabledata PerfionDataSyncOutLog = RIMD,
-        table PerfionDataSyncOutLog = X,
         page PerfionDataSyncOutLog = X,
 
         codeunit PerfionDataSyncIn = X,

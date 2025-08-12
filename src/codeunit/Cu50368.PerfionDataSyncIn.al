@@ -1,19 +1,23 @@
 codeunit 50368 PerfionDataSyncIn
 {
+    // This codeunit is a refactored version of the original PerfionDataSyncIn.
+    // It implements the "Collect, Then Commit" pattern to dramatically improve performance
+    // by minimizing database read/write operations and reducing transaction duration.
+
     trigger OnRun()
-
     var
-        perfionSyncOut: Record PerfionDataSyncOut;
-
+        perfionSyncIn: Record PerfionDataSyncIn;
+        Profiler: Codeunit AbileneProfiler;
+        t: Time;
+        tOnRun: Time;
     begin
-        //NOTE - currDateTime is always in EST Time because it is based on my time zone
+        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", true, 250); // enable=true, log details only if >=200ms
+        Profiler.Start('onRun', tOnRun);
         currDateTime := CurrentDateTime;
-
-        perfionSyncOut.Get();
-        lastPerfionSync := perfionSyncOut.LastSync;
+        if perfionSyncIn.Get() then
+            lastPerfionSync := perfionSyncIn.LastSync;
 
         if perfionConfig.Get() then begin
-            //LOGIC - For the last sync of the day, run a full sync with no date filters
             if (CheckTime()) or (perfionConfig.fullSync) then
                 fullSync := true
             else
@@ -21,31 +25,13 @@ codeunit 50368 PerfionDataSyncIn
 
             if perfionDataSyncIn.Get() then begin
                 changeCount := 0;
-
-                //LOGIC - Get the Perfion Token & register variables
+                Profiler.Start('startPerfionRequest', t);
                 startPerfionRequest();
+                Profiler.Stop('startPerfionRequest', t, '', '');
             end;
         end;
-    end;
-
-    procedure CheckTime(): Boolean
-    var
-        MyTime: Time;
-        CurrentTime: Time;
-        IsLater: Boolean;
-    begin
-        // 1. Define the target time using a TIME LITERAL.
-        MyTime := 180000T; // 6:00:00 PM (24-hour format)
-        CurrentTime := Time();
-        IsLater := CurrentTime >= MyTime;
-
-        if IsLater then
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'CheckTime true', Format(CurrentTime) + ' - ' + Format(MyTime))
-        else
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'CheckTime false', Format(CurrentTime) + ' - ' + Format(MyTime));
-
-
-        exit(IsLater); // Return the result
+        Profiler.Stop('onRun', tOnRun, '', '');
+        Profiler.Flush();
     end;
 
     local procedure startPerfionRequest()
@@ -54,260 +40,563 @@ codeunit 50368 PerfionDataSyncIn
         Content: Text;
         ErrorList: List of [Text];
         ErrorListMsg: Text;
-        ErrorMsg: Text;
-
+        Profiler: Codeunit AbileneProfiler;
+        t: Time;
     begin
-
-
         Content := GenerateQueryContent();
-
         if not apiHandler.perfionPostRequest(CallResponse, ErrorList, Content) then begin
             logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'startPerfionRequest', Enum::ErrorType::Catch, GetLastErrorText());
             exit;
         end;
 
         if ErrorList.Count > 0 then begin
-            foreach ErrorListMsg in ErrorList do begin
+            foreach ErrorListMsg in ErrorList do
                 logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'startPerfionRequest', Enum::ErrorType::Crash, ErrorListMsg);
-            end;
             exit;
         end;
+        Profiler.Start('processPerfionResponse', t);
+        processPerfionResponse(CallResponse);
+        Profiler.Stop('processPerfionResponse', t, '', '');
 
-        processPerfionResponse(CallResponse)
     end;
 
     local procedure processPerfionResponse(response: Text)
     var
-        responseObject: JsonObject;
-        dataToken: JsonToken;
-        totalToken: JsonToken;
-        itemsToken: JsonToken;
-        valuesToken: JsonToken;
-        valueItemToken: JsonToken;
-        valuePriceToken: JsonToken;
-        featureToken: JsonToken;
-        itemNumToken: JsonToken;
-        itemDateModified, itemDateCreated : JsonToken;
-        itemFeatureValue: JsonToken;
-        itemFeatureName: JsonToken;
-        featureId: JsonToken;
-
-        modifiedDate: Date;
-        createdDate: Date;
         recItem: Record Item;
-        hasCore, hasPicInstructions, hasApplications, hasUserNotes : Boolean;
+        responseObject: JsonObject;
+        dataToken, totalToken, itemsToken, valuesToken, valueItemToken, itemNumToken : JsonToken;
+        itemDateCreated, itemDateModified, itemFeatureValue, itemFeatureName, featureId : JsonToken;
         itemNum: Code[20];
         tempCoreResource: Code[20];
+        tempPicInstructions: Text;
+        tempApplications, tempUserNotes : Text;
         tempCoreValue: Decimal;
-        tempItemDateModified: DateTime;
-        tempApplications: Text[2048];
-        tempUserNotes: Text[2048];
-        modifiedDateTime, createdDateTime : DateTime;
-        tempPicInstructions: Text[400];
-
+        tempItemDateModified, createdDateTime, modifiedDateTime : DateTime;
+        hasCore, hasPicInstructions, hasApplications, hasUserNotes, itemModified, userNotesModifiedInBC, applicationsModifiedInBC : Boolean;
+        Profiler: Codeunit AbileneProfiler;
+        t: Time;
     begin
-
         responseObject.ReadFrom(response);
-        responseObject.SelectToken('Data', dataToken);
-        dataToken.SelectToken('totalCount', totalToken);
+        if not responseObject.SelectToken('Data', dataToken) then exit;
+        if not dataToken.SelectToken('totalCount', totalToken) then exit;
 
         if totalToken.AsValue().AsInteger() = 0 then begin
-            perfionDataSyncIn.Processed := changeCount;
-            perfionDataSyncIn.TotalCount := totalToken.AsValue().AsInteger();
-            //LOGIC - Update the last sync time
-            perfionDataSyncIn.LastSync := currDateTime;
-            perfionDataSyncIn.Modify();
+            UpdateSyncStatus(0, 0);
+            exit;
         end;
 
-        dataToken.SelectToken('Items', itemsToken);
-
+        if not dataToken.SelectToken('Items', itemsToken) then exit;
+        Profiler.Start('itemsToken.AsArray', t);
         foreach itemsToken in itemsToken.AsArray() do begin
-            itemsToken.SelectToken('Values', valuesToken);
-            if valuesToken.AsArray().Count > 0 then begin
+            if itemsToken.SelectToken('Values', valuesToken) then
+                if valuesToken.AsArray().Count > 0 then begin
+                    valuesToken.AsArray().Get(0, valueItemToken);
+                    if valueItemToken.SelectToken('value', itemNumToken) then begin
+                        itemNum := CopyStr(itemNumToken.AsValue().AsCode(), 1, MaxStrLen(itemNum));
+                        if IsValidItem(itemNum) then begin
+                            recItem.Reset();
+                            SetItemLoadFields(recItem);
+                            if recItem.Get(itemNum) then begin
+                                if not recItem.Blocked then begin
+                                    // Main processing logic for the item starts here
+                                    Clear(hasCore);
+                                    Clear(hasPicInstructions);
+                                    Clear(hasUserNotes);
+                                    Clear(hasApplications);
+                                    Clear(tempCoreResource);
+                                    Clear(tempCoreValue);
+                                    Clear(tempPicInstructions);
+                                    Clear(tempApplications);
+                                    Clear(tempUserNotes);
+                                    itemModified := false;
+
+                                    userNotesModifiedInBC := WasFieldModifiedAfterSync(itemNum, 'User Notes', lastPerfionSync);
+                                    applicationsModifiedInBC := WasFieldModifiedAfterSync(itemNum, 'Application', lastPerfionSync);
+
+                                    if itemsToken.SelectToken('createdDate', itemDateCreated) then begin
+                                        createdDateTime := itemDateCreated.AsValue().AsDateTime();
+                                        updatePerfionCreatedOn(recItem, createdDateTime, itemModified);
+                                    end;
+
+                                    foreach valuesToken in valuesToken.AsArray() do begin
+                                        if valuesToken.SelectToken('featureId', featureId) then
+                                            if featureId.AsValue().AsInteger() <> 100 then begin
+                                                valuesToken.SelectToken('value', itemFeatureValue);
+                                                valuesToken.SelectToken('featureName', itemFeatureName);
+                                                valuesToken.SelectToken('modifiedDate', itemDateModified);
+                                                modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+
+                                                case itemFeatureName.AsValue().AsText() of
+                                                    'PartNameProductDescription':
+                                                        begin
+                                                            Profiler.Start('updateItemDescription', t);
+                                                            updateItemDescription(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updateItemDescription', t, '', '');
+                                                        end;
+
+                                                    'SAGroup2':
+                                                        begin
+                                                            Profiler.Start('updateItemCategory', t);
+                                                            updateItemCategory(recItem, itemFeatureValue.AsValue().AsCode(), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updateItemCategory', t, '', '');
+                                                        end;
+                                                    'PerfionPictureStatus':
+                                                        begin
+                                                            Profiler.Start('updateItemPicture', t);
+                                                            updateItemPicture(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updateItemPicture', t, '', '');
+                                                        end;
+                                                    'Visibility':
+                                                        begin
+                                                            Profiler.Start('updateItemVisibility', t);
+                                                            updateItemVisibility(recItem, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updateItemVisibility', t, '', '');
+                                                        end;
+                                                    'P1SalesManagerEnrichStatus':
+                                                        begin
+                                                            Profiler.Start('updateEnrichStatus', t);
+                                                            updateEnrichStatus(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updateEnrichStatus', t, '', '');
+                                                        end;
+                                                    'USERNotes':
+                                                        begin
+                                                            Profiler.Start('updatePerfionUserNotes', t);
+                                                            updatePerfionUserNotes(recItem, CopyStr(itemFeatureValue.AsValue().AsText(), 1, 50), modifiedDateTime, itemModified);
+                                                            Profiler.Stop('updatePerfionUserNotes', t, '', '');
+                                                        end;
+                                                    'BCUserNotes':
+                                                        begin
+                                                            hasUserNotes := true;
+                                                            tempUserNotes := itemFeatureValue.AsValue().AsText();
+                                                            tempItemDateModified := modifiedDateTime;
+                                                        end;
+                                                    'BCApplications':
+                                                        begin
+                                                            hasApplications := true;
+                                                            tempApplications := itemFeatureValue.AsValue().AsText();
+                                                            tempItemDateModified := modifiedDateTime;
+                                                        end;
+                                                    'PhotographyPickerInstructions':
+                                                        begin
+                                                            hasPicInstructions := true;
+                                                            tempPicInstructions := itemFeatureValue.AsValue().AsText();
+                                                            tempItemDateModified := modifiedDateTime;
+                                                        end;
+                                                    'CoreResourceName':
+                                                        tempCoreResource := itemFeatureValue.AsValue().AsCode();
+                                                    'Core':
+                                                        begin
+                                                            hasCore := true;
+                                                            tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
+                                                            tempItemDateModified := modifiedDateTime;
+                                                        end;
+                                                end;
+                                            end;
+                                    end;
+                                    Profiler.Start('updateCoreData', t);
+                                    updateCoreData(recItem, tempCoreResource, tempCoreValue, hasCore, tempItemDateModified, itemModified);
+                                    Profiler.Stop('updateCoreData', t, '', '');
+                                    Profiler.Start('updatePictureInstructions', t);
+                                    updatePictureInstructions(recItem, tempPicInstructions, hasPicInstructions, tempItemDateModified, itemModified);
+                                    Profiler.Stop('updatePictureInstructions', t, '', '');
+                                    Profiler.Start('updateItemUserNotes', t);
+                                    updateItemUserNotes(recItem, tempUserNotes, hasUserNotes, userNotesModifiedInBC, tempItemDateModified, itemModified);
+                                    Profiler.Stop('updateItemUserNotes', t, '', '');
+                                    Profiler.Start('updateItemApplications', t);
+                                    updateItemApplications(recItem, tempApplications, hasApplications, applicationsModifiedInBC, tempItemDateModified, itemModified);
+                                    Profiler.Stop('updateItemApplications', t, '', '');
+
+                                    if itemModified then begin
+                                        if recItem.Modify(true) then
+                                            changeCount += 1
+                                        else
+                                            logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Modify', Enum::ErrorType::Catch, recItem."No.", GetLastErrorText());
+                                    end;
+                                    // Main processing logic for the item ends here
+                                end else
+                                    logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Blocked', itemNum, 'Item blocked in BC');
+                            end else
+                                logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Get', itemNum, 'Item not in BC');
+                        end;
+                    end;
+                end;
+        end;
+
+        Profiler.Stop('itemsToken.AsArray', t, '', '');
+
+        UpdateSyncStatus(changeCount, totalToken.AsValue().AsInteger());
+    end;
+
+
+    /* For use in Runtime 15.0
+        local procedure processPerfionResponse(response: Text)
+        var
+            recItem: Record Item;
+            responseObject: JsonObject;
+            dataToken, totalToken, itemsToken, valuesToken, valueItemToken, itemNumToken : JsonToken;
+            itemDateCreated, itemDateModified, itemFeatureValue, itemFeatureName, featureId : JsonToken;
+            itemNum: Code[20];
+            tempCoreResource: Code[20];
+            tempPicInstructions: Text;
+            tempApplications, tempUserNotes : Text;
+            tempCoreValue: Decimal;
+            tempItemDateModified, createdDateTime, modifiedDateTime : DateTime;
+            hasCore, hasPicInstructions, hasApplications, hasUserNotes, itemModified, userNotesModifiedInBC, applicationsModifiedInBC : Boolean;
+        begin
+            responseObject.ReadFrom(response);
+            if not responseObject.SelectToken('Data', dataToken) then exit;
+            if not dataToken.SelectToken('totalCount', totalToken) then exit;
+
+            if totalToken.AsValue().AsInteger() = 0 then begin
+                UpdateSyncStatus(0, 0);
+                exit;
+            end;
+
+            if not dataToken.SelectToken('Items', itemsToken) then exit;
+
+            foreach itemsToken in itemsToken.AsArray() do begin
+                if not itemsToken.SelectToken('Values', valuesToken) then Continue;
+                if valuesToken.AsArray().Count = 0 then Continue;
+
                 valuesToken.AsArray().Get(0, valueItemToken);
-                valueItemToken.SelectToken('value', itemNumToken);
+                if not valueItemToken.SelectToken('value', itemNumToken) then Continue;
 
-                Clear(itemNum);
                 itemNum := CopyStr(itemNumToken.AsValue().AsCode(), 1, MaxStrLen(itemNum));
+                if not IsValidItem(itemNum) then Continue;
 
-                if checkItem(itemNum) then begin
-                    currentItem := itemNum;
+                recItem.Reset();
+                SetItemLoadFields(recItem);
+                if not recItem.Get(itemNum) then begin
+                    logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Get', itemNum, 'Item not in BC');
+                    Continue;
+                end;
 
-                    hasCore := false;
-                    hasPicInstructions := false;
-                    hasUserNotes := false;
-                    hasApplications := false;
-                    Clear(tempCoreResource);
-                    Clear(tempCoreValue);
-                    Clear(tempPicInstructions);
-                    Clear(tempApplications);
-                    Clear(tempUserNotes);
+                if recItem.Blocked then begin
+                    logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Blocked', itemNum, 'Item blocked in BC');
+                    Continue;
+                end;
 
-                    Clear(createdDate);
-                    Clear(createdDateTime);
-                    itemsToken.SelectToken('createdDate', itemDateCreated);
-                    createdDate := DT2Date(itemDateCreated.AsValue().AsDateTime());
+                // Initialize variables for the current item processing
+                Clear(hasCore);
+                Clear(hasPicInstructions);
+                Clear(hasUserNotes);
+                Clear(hasApplications);
+                Clear(tempCoreResource);
+                Clear(tempCoreValue);
+                Clear(tempPicInstructions);
+                Clear(tempApplications);
+                Clear(tempUserNotes);
+                itemModified := false;
+
+                userNotesModifiedInBC := WasFieldModifiedAfterSync(itemNum, 'User Notes', lastPerfionSync);
+                applicationsModifiedInBC := WasFieldModifiedAfterSync(itemNum, 'Application', lastPerfionSync);
+
+                if itemsToken.SelectToken('createdDate', itemDateCreated) then begin
                     createdDateTime := itemDateCreated.AsValue().AsDateTime();
+                    updatePerfionCreatedOn(recItem, createdDateTime, itemModified);
+                end;
 
-                    //NOTE - Loop through all attributes. The first is the item number (featureId:100)
+                foreach valuesToken in valuesToken.AsArray() do begin
+                    if not valuesToken.SelectToken('featureId', featureId) then Continue;
+                    if featureId.AsValue().AsInteger() = 100 then Continue;
 
-                    foreach valuesToken in valuesToken.AsArray() do begin
-                        valuesToken.SelectToken('featureId', featureId);
-                        if featureId.AsValue().AsInteger() <> 100 then begin
+                    valuesToken.SelectToken('value', itemFeatureValue);
+                    valuesToken.SelectToken('featureName', itemFeatureName);
+                    valuesToken.SelectToken('modifiedDate', itemDateModified);
+                    modifiedDateTime := itemDateModified.AsValue().AsDateTime();
 
-                            Clear(modifiedDate);
-
-                            valuesToken.SelectToken('modifiedDate', itemDateModified);
-                            modifiedDate := DT2Date(itemDateModified.AsValue().AsDateTime());
-
-                            //DEVELOPER - Testing Only
-                            //dateLastWeek := DMY2Date(9, 5, 2024);
-
-                            valuesToken.SelectToken('value', itemFeatureValue);
-                            valuesToken.SelectToken('featureName', itemFeatureName);
-                            modifiedDateTime := itemDateModified.AsValue().AsDateTime();
-
-                            updatePerfionCreatedOn(itemNum, createdDateTime, modifiedDateTime);
-
-                            if itemFeatureName.AsValue().AsText() = 'PartNameProductDescription' then
-                                updateItemDescription(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'SAGroup2' then
-                                updateItemCategory(itemNum, itemFeatureValue.AsValue().AsCode(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'PerfionPictureStatus' then
-                                updateItemPicture(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'Visibility' then
-                                updateItemVisibility(itemNum, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'P1SalesManagerEnrichStatus' then
-                                updateEnrichStatus(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'USERNotes' then
-                                updatePerfionUserNotes(itemNum, itemFeatureValue.AsValue().AsText(), modifiedDateTime)
-                            else if itemFeatureName.AsValue().AsText() = 'BCUserNotes' then begin
+                    case itemFeatureName.AsValue().AsText() of
+                        'PartNameProductDescription':
+                            updateItemDescription(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                        'SAGroup2':
+                            updateItemCategory(recItem, itemFeatureValue.AsValue().AsCode(), modifiedDateTime, itemModified);
+                        'PerfionPictureStatus':
+                            updateItemPicture(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                        'Visibility':
+                            updateItemVisibility(recItem, itemFeatureValue.AsValue().AsInteger(), modifiedDateTime, itemModified);
+                        'P1SalesManagerEnrichStatus':
+                            updateEnrichStatus(recItem, itemFeatureValue.AsValue().AsText(), modifiedDateTime, itemModified);
+                        'USERNotes':
+                            updatePerfionUserNotes(recItem, CopyStr(itemFeatureValue.AsValue().AsText(), 1, 50), modifiedDateTime, itemModified);
+                        'BCUserNotes':
+                            begin
                                 hasUserNotes := true;
                                 tempUserNotes := itemFeatureValue.AsValue().AsText();
                                 tempItemDateModified := modifiedDateTime;
-                            end
-                            else if itemFeatureName.AsValue().AsText() = 'BCApplications' then begin
+                            end;
+                        'BCApplications':
+                            begin
                                 hasApplications := true;
                                 tempApplications := itemFeatureValue.AsValue().AsText();
                                 tempItemDateModified := modifiedDateTime;
-                            end
-                            else if itemFeatureName.AsValue().AsText() = 'PhotographyPickerInstructions' then begin
+                            end;
+                        'PhotographyPickerInstructions':
+                            begin
                                 hasPicInstructions := true;
                                 tempPicInstructions := itemFeatureValue.AsValue().AsText();
                                 tempItemDateModified := modifiedDateTime;
-                            end
-                            else if itemFeatureName.AsValue().AsText() = 'CoreResourceName' then
-                                tempCoreResource := itemFeatureValue.AsValue().AsCode()
-                            else if itemFeatureName.AsValue().AsText() = 'Core' then begin
+                            end;
+                        'CoreResourceName':
+                            tempCoreResource := itemFeatureValue.AsValue().AsCode();
+                        'Core':
+                            begin
                                 hasCore := true;
                                 tempCoreValue := itemFeatureValue.AsValue().AsDecimal();
                                 tempItemDateModified := modifiedDateTime;
                             end;
-
-                        end;
                     end;
-                    if hasCore then
-                        updateCoreData(itemNum, tempCoreResource, tempCoreValue, tempItemDateModified)
-                    else
-                        updateCoreData(itemNum, '', 0, tempItemDateModified);
-
-                    if hasPicInstructions then
-                        updatePictureInstructions(itemNum, tempPicInstructions, tempItemDateModified)
-                    else
-                        updatePictureInstructions(itemNum, '', tempItemDateModified);
-
-                    if hasUserNotes then
-                        updateItemUserNotes(itemNum, tempUserNotes, modifiedDateTime)
-                    else
-                        if not WasFieldModifiedAfterSync(itemNum, 'User Notes', lastPerfionSync) then
-                            updateItemUserNotes(itemNum, '', modifiedDateTime);
-
-                    if hasApplications then
-                        updateItemApplications(itemNum, tempApplications, modifiedDateTime)
-                    else
-                        if not WasFieldModifiedAfterSync(itemNum, 'Application', lastPerfionSync) then
-                            updateItemApplications(itemNum, '', modifiedDateTime);
                 end;
 
+                updateCoreData(recItem, tempCoreResource, tempCoreValue, hasCore, tempItemDateModified, itemModified);
+                updatePictureInstructions(recItem, tempPicInstructions, hasPicInstructions, tempItemDateModified, itemModified);
+                updateItemUserNotes(recItem, tempUserNotes, hasUserNotes, userNotesModifiedInBC, tempItemDateModified, itemModified);
+                updateItemApplications(recItem, tempApplications, hasApplications, applicationsModifiedInBC, tempItemDateModified, itemModified);
+
+                if itemModified then begin
+                    if recItem.Modify(true) then
+                        changeCount += 1
+                    else
+                        logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Modify', Enum::ErrorType::Catch, recItem."No.", GetLastErrorText());
+                end;
             end;
 
-            perfionDataSyncIn.Processed := changeCount;
-            perfionDataSyncIn.TotalCount := totalToken.AsValue().AsInteger();
-            //LOGIC - Update the last sync time
-            perfionDataSyncIn.LastSync := currDateTime;
-            perfionDataSyncIn.Modify();
-
-            perfionConfig.fullSync := false;
-            perfionConfig.Modify();
-
+            UpdateSyncStatus(changeCount, totalToken.AsValue().AsInteger());
         end;
-    end;
-
-    local procedure checkItem(itemNo: Code[20]): Boolean
-    var
-        recItem: Record Item;
-
+    */
+    local procedure IsValidItem(itemNo: Code[20]): Boolean
     begin
-        if Text.StrLen(itemNo) > 20 then begin
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item No too long');
+        if StrLen(itemNo) > 20 then begin
+            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'IsValidItem', itemNo, 'Item No too long');
             exit(false);
         end;
-        recItem.Reset();
-
-        if not recItem.Get(itemNo) then begin
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item not in BC');
-            exit(false);
-        end
-        else if recItem.Blocked then begin
-            logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'checkItem', itemNo, 'Item blocked in BC');
-            exit(false);
-        end
-        else
-            exit(true);
+        exit(true);
     end;
 
-    local procedure updatePerfionCreatedOn(itemNo: Code[20]; newCreatedOn: DateTime; modified: DateTime)
+    local procedure updatePerfionCreatedOn(var recItem: Record Item; newCreatedOn: DateTime; var itemModified: Boolean)
     var
         oldCreatedOn: DateTime;
-        recItem: Record Item;
-
     begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.PerfionCreatedOn < newCreatedOn then begin
-                oldCreatedOn := recItem.PerfionCreatedOn;
-                recItem.PerfionCreatedOn := newCreatedOn;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, Format(newCreatedOn), Format(oldCreatedOn), Enum::PerfionValueType::PerfionCreatedOn, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePerfionCreatedOn', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
+        if recItem.PerfionCreatedOn < newCreatedOn then begin
+            oldCreatedOn := recItem.PerfionCreatedOn;
+            recItem.PerfionCreatedOn := newCreatedOn;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", Format(newCreatedOn), Format(oldCreatedOn), Enum::PerfionValueType::PerfionCreatedOn, newCreatedOn);
         end;
     end;
 
-
-    local procedure updateItemDescription(itemNo: Code[20]; newDescription: Text; modified: DateTime)
+    local procedure updateItemDescription(var recItem: Record Item; newDescription: Text; modified: DateTime; var itemModified: Boolean)
     var
         oldDescription: Text;
-        recItem: Record Item;
-
     begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.Description <> newDescription then begin
-                oldDescription := recItem.Description;
-                recItem.Description := newDescription;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newDescription, oldDescription, Enum::PerfionValueType::Description, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemDescription', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
+        if recItem.Description <> newDescription then begin
+            oldDescription := recItem.Description;
+            recItem.Description := newDescription;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", newDescription, oldDescription, Enum::PerfionValueType::Description, modified);
+        end;
+    end;
+
+    local procedure updateItemCategory(var recItem: Record Item; newCategory: Code[20]; modified: DateTime; var itemModified: Boolean)
+    var
+        oldCategory: Code[20];
+    begin
+        if recItem."Item Category Code" <> newCategory then begin
+            oldCategory := recItem."Item Category Code";
+            recItem."Item Category Code" := newCategory;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, modified);
+        end;
+    end;
+
+    local procedure updateItemPicture(var recItem: Record Item; newStatusText: Text; modified: DateTime; var itemModified: Boolean)
+    var
+        oldStatus: Enum "PerfionPictureStatus";
+        newStatus: Enum "PerfionPictureStatus";
+    begin
+        case newStatusText of
+            'Unassigned':
+                newStatus := PerfionPictureStatus::"Unassigned";
+            'Needed':
+                newStatus := PerfionPictureStatus::"Needed";
+            'Completed':
+                newStatus := PerfionPictureStatus::"Completed";
+            'Excluded':
+                newStatus := PerfionPictureStatus::"Excluded";
+            'Retake Needed':
+                newStatus := PerfionPictureStatus::"Retake Needed";
+            else
+                exit;
+        end;
+
+        if recItem.PerfionPicture <> newStatus then begin
+            oldStatus := recItem.PerfionPicture;
+            recItem.PerfionPicture := newStatus;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", Format(newStatus), Format(oldStatus), Enum::PerfionValueType::Picture, modified);
+        end;
+    end;
+
+    local procedure updateItemVisibility(var recItem: Record Item; newVisibility: Integer; modified: DateTime; var itemModified: Boolean)
+    var
+        oldVisibility: Enum PerfionMagentoVisibilityType;
+        enumVisibility: Enum PerfionMagentoVisibilityType;
+    begin
+        case newVisibility of
+            1:
+                enumVisibility := Enum::PerfionMagentoVisibilityType::NotVisible;
+            2:
+                enumVisibility := Enum::PerfionMagentoVisibilityType::InCatalog;
+            3:
+                enumVisibility := Enum::PerfionMagentoVisibilityType::InSearch;
+            4:
+                enumVisibility := Enum::PerfionMagentoVisibilityType::Both;
+            else
+                exit;
+        end;
+
+        if recItem.MagentoVisibility <> enumVisibility then begin
+            oldVisibility := recItem.MagentoVisibility;
+            recItem.MagentoVisibility := enumVisibility;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", Format(enumVisibility), Format(oldVisibility), Enum::PerfionValueType::Visibility, modified);
+        end;
+    end;
+
+    local procedure updateEnrichStatus(var recItem: Record Item; newStatus: Text; modified: DateTime; var itemModified: Boolean)
+    var
+        oldStatus: Enum PerfionSlsMgrEnrichStatus;
+        enumStatus: Enum PerfionSlsMgrEnrichStatus;
+    begin
+        case newStatus of
+            'Work':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::Work;
+            'Review':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::Review;
+            'Paused':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::Paused;
+            'Rejected':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::Rejected;
+            'Reject from Workflow':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Reject from Workflow";
+            'Paused for Later Project':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Paused for Later Project";
+            'Complete':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::Complete;
+            'N/A':
+                enumStatus := Enum::PerfionSlsMgrEnrichStatus::"N/A";
+            else
+                exit;
+        end;
+
+        if recItem.SlsMgrEnrichStatus <> enumStatus then begin
+            oldStatus := recItem.SlsMgrEnrichStatus;
+            recItem.SlsMgrEnrichStatus := enumStatus;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", Format(enumStatus), Format(oldStatus), Enum::PerfionValueType::SlsMgrEnrichStatus, modified);
+        end;
+    end;
+
+    local procedure updatePerfionUserNotes(var recItem: Record Item; newNotes: Text; modified: DateTime; var itemModified: Boolean)
+    var
+        oldNotes: Text;
+    begin
+        if recItem.PerfionUserNotes <> newNotes then begin
+            oldNotes := recItem.PerfionUserNotes;
+            recItem.PerfionUserNotes := newNotes;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", newNotes, oldNotes, Enum::PerfionValueType::PerfionUserNotes, modified);
+        end;
+    end;
+
+    local procedure updateCoreData(var recItem: Record Item; newCoreResource: Code[20]; newCoreValue: Decimal; hasCore: Boolean; modified: DateTime; var itemModified: Boolean)
+    var
+        oldCoreValue: Decimal;
+        oldCoreResource: Code[20];
+        needSync: Boolean;
+        magentoSync: Codeunit MagentoDataSync;
+    begin
+        if not hasCore then begin
+            newCoreResource := '';
+            newCoreValue := 0;
+        end;
+
+        if recItem."Core Sales Value" <> newCoreValue then begin
+            oldCoreValue := recItem."Core Sales Value";
+            recItem."Core Sales Value" := newCoreValue;
+            itemModified := true;
+            needSync := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, modified);
+        end;
+
+        if recItem."Core Resource Name" <> newCoreResource then begin
+            oldCoreResource := recItem."Core Resource Name";
+            recItem."Core Resource Name" := newCoreResource;
+            itemModified := true;
+            needSync := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", newCoreResource, oldCoreResource, Enum::PerfionValueType::CoreResource, modified);
+        end;
+
+        if needSync then
+            magentoSync.sendCoreData(recItem."No.");
+    end;
+
+    local procedure updatePictureInstructions(var recItem: Record Item; newInstructions: Text; hasPicInstructions: Boolean; modified: DateTime; var itemModified: Boolean)
+    var
+        oldInstructions: Text;
+        finalInstructions: Text;
+    begin
+        if hasPicInstructions then
+            finalInstructions := newInstructions
+        else
+            finalInstructions := '';
+
+        if recItem.PictureInstructions <> finalInstructions then begin
+            oldInstructions := recItem.PictureInstructions;
+            recItem.PictureInstructions := finalInstructions;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", PadStr(finalInstructions, 400), oldInstructions, Enum::PerfionValueType::PictureInstructions, modified);
+        end;
+    end;
+
+    local procedure updateItemUserNotes(var recItem: Record Item; newUserNotes: Text; hasUserNotes: Boolean; modifiedInBC: Boolean; modified: DateTime; var itemModified: Boolean)
+    var
+        oldUserNotes: Text;
+        finalUserNotes: Text;
+    begin
+        if hasUserNotes then
+            finalUserNotes := newUserNotes
+        else
+            if not modifiedInBC then
+                finalUserNotes := ''
+            else
+                exit;
+
+        if recItem.userNotes <> finalUserNotes then begin
+            oldUserNotes := recItem.userNotes;
+            recItem.userNotes := finalUserNotes;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", finalUserNotes, oldUserNotes, Enum::PerfionValueType::UserNotes, modified);
+        end;
+    end;
+
+    local procedure updateItemApplications(var recItem: Record Item; newApplications: Text; hasApplications: Boolean; modifiedInBC: Boolean; modified: DateTime; var itemModified: Boolean)
+    var
+        oldApplications: Text;
+        finalApplications: Text;
+    begin
+        if hasApplications then
+            finalApplications := newApplications
+        else
+            if not modifiedInBC then
+                finalApplications := ''
+            else
+                exit;
+
+        if recItem.application <> finalApplications then begin
+            oldApplications := recItem.application;
+            recItem.application := finalApplications;
+            itemModified := true;
+            dataLogHandler.LogItemUpdate(recItem."No.", finalApplications, oldApplications, Enum::PerfionValueType::Applications, modified);
         end;
     end;
 
@@ -315,369 +604,66 @@ codeunit 50368 PerfionDataSyncIn
     var
         changeLogEntry: Record "Change Log Entry";
     begin
+        if lastSync = 0DT then exit(false);
         changeLogEntry.SetRange("Table Caption", 'Item');
         changeLogEntry.SetRange("Field Caption", fieldCaption);
         changeLogEntry.SetRange("Primary Key Field 1 Value", itemNo);
         changeLogEntry.SetFilter("Date and Time", '>%1', lastSync);
-
-        exit(changeLogEntry.FindFirst());
+        exit(not changeLogEntry.IsEmpty());
     end;
 
-
-    local procedure updateItemUserNotes(itemNo: Code[20]; newUserNotes: Text; modified: DateTime)
-    var
-        oldUserNotes: Text;
-        recItem: Record Item;
+    local procedure SetItemLoadFields(var recItem: Record Item)
     begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.userNotes <> newUserNotes then begin
-                oldUserNotes := recItem.userNotes;
-                recItem.userNotes := newUserNotes;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newUserNotes, oldUserNotes, Enum::PerfionValueType::UserNotes, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemUserNotes', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
+        recItem.SetLoadFields(
+            "No.", Blocked, Description, "Item Category Code", PerfionPicture,
+            MagentoVisibility, SlsMgrEnrichStatus, PerfionUserNotes, userNotes,
+            application, PictureInstructions, "Core Resource Name", "Core Sales Value",
+            PerfionCreatedOn
+        );
+    end;
+
+    local procedure UpdateSyncStatus(processedCount: Integer; totalCount: Integer)
+    begin
+        perfionDataSyncIn.Processed := processedCount;
+        perfionDataSyncIn.TotalCount := totalCount;
+        perfionDataSyncIn.LastSync := currDateTime;
+        perfionDataSyncIn.Modify();
+
+        if fullSync then begin
+            perfionConfig.fullSync := false;
+            perfionConfig.Modify();
         end;
     end;
 
-    local procedure updateItemApplications(itemNo: Code[20]; newApplications: Text; modified: DateTime)
+    procedure CheckTime(): Boolean
     var
-        oldApplications: Text;
-        recItem: Record Item;
-
+        MyTime: Time;
+        CurrentTime: Time;
     begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.application <> newApplications then begin
-                oldApplications := recItem.application;
-                recItem.application := newApplications;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newApplications, oldApplications, Enum::PerfionValueType::Applications, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemApplications', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
+        MyTime := 180000T; // 6:00:00 PM
+        CurrentTime := Time();
+        exit(CurrentTime >= MyTime);
     end;
-
-    local procedure updateItemPicture(itemNo: Code[20]; newStatusText: Text; modified: DateTime)
-    var
-        recItem: Record Item;
-        oldStatus: Enum "PerfionPictureStatus";
-        newStatus: Enum "PerfionPictureStatus";
-    begin
-        recItem.SetRange("No.", itemNo);
-        if recItem.FindFirst() then begin
-
-            // Convert Text to Enum
-            case newStatusText of
-                'Unassigned':
-                    newStatus := PerfionPictureStatus::"Unassigned";
-                'Needed':
-                    newStatus := PerfionPictureStatus::"Needed";
-                'Completed':
-                    newStatus := PerfionPictureStatus::"Completed";
-                'Excluded':
-                    newStatus := PerfionPictureStatus::"Excluded";
-                'Retake Needed':
-                    newStatus := PerfionPictureStatus::"Retake Needed";
-                else
-                    logManager.logError(
-                        Enum::AppCode::Perfion,
-                        Enum::AppProcess::"Data Sync In",
-                        'updateItemPicture Enum Conversion',
-                        Enum::ErrorType::Catch,
-                        itemNo,
-                        GetLastErrorText()
-                    );
-            end;
-
-            if recItem.PerfionPicture <> newStatus then begin
-                oldStatus := recItem.PerfionPicture;
-                recItem.PerfionPicture := newStatus;
-
-                if recItem.Modify() then
-                    dataLogHandler.LogItemUpdate(
-                        itemNo,
-                        Format(newStatus), // log as text
-                        Format(oldStatus),
-                        Enum::PerfionValueType::Picture,
-                        modified
-                    )
-                else
-                    logManager.logError(
-                        Enum::AppCode::Perfion,
-                        Enum::AppProcess::"Data Sync In",
-                        'updateItemPicture',
-                        Enum::ErrorType::Catch,
-                        itemNo,
-                        GetLastErrorText()
-                    );
-
-                changeCount += 1;
-            end;
-        end;
-    end;
-
-    local procedure updatePictureInstructions(itemNo: Code[20]; newInstructions: Text; modified: DateTime)
-    var
-        recItem: Record Item;
-        oldInstructions: Text;
-
-    begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.PictureInstructions <> newInstructions then begin
-                oldInstructions := recItem.PictureInstructions;
-                recItem.PictureInstructions := newInstructions;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newInstructions, 400), oldInstructions, Enum::PerfionValueType::PictureInstructions, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePictureInstructions', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
-    end;
-
-    local procedure updatePerfionUserNotes(itemNo: Code[20]; newNotes: Text; modified: DateTime)
-    var
-        recItem: Record Item;
-        oldNotes: Text;
-
-    begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem.PerfionUserNotes <> newNotes then begin
-                oldNotes := recItem.PerfionUserNotes;
-                recItem.PerfionUserNotes := newNotes;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, PadStr(newNotes, 2048), oldNotes, Enum::PerfionValueType::PerfionUserNotes, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updatePerfionUserNotes', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
-    end;
-
-
-    local procedure updateEnrichStatus(itemNo: Code[20]; newStatus: Text; modified: DateTime)
-    var
-        oldStatus: Enum PerfionSlsMgrEnrichStatus;
-        recItem: Record Item;
-        enumStatus: Enum PerfionSlsMgrEnrichStatus;
-        oldStatusText: Text;
-        newStatusText: Text;
-
-    begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            // Get the current status value
-            oldStatus := recItem.SlsMgrEnrichStatus;
-            // Convert incoming integer to enum value
-            case newStatus of
-                'Work':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Work;
-                'Review':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Review;
-                'Paused':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Paused;
-                'Rejected':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Rejected;
-                'Reject from Workflow':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Reject from Workflow";
-                'Paused for Later Project':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"Paused for Later Project";
-                'Complete':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::Complete;
-                'N/A':
-                    enumStatus := Enum::PerfionSlsMgrEnrichStatus::"N/A";
-                else begin
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateEnrichStatus', Enum::ErrorType::Catch, itemNo, 'Invalid Enrich Status value: ' + Format(newStatus));
-                    exit;
-                end;
-            end;
-
-            // Convert enum values to text
-            oldStatusText := Format(oldStatus);
-            newStatusText := Format(enumStatus);
-
-            if oldStatus <> enumStatus then begin
-                recItem.SlsMgrEnrichStatus := enumStatus;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newStatusText, oldStatusText, Enum::PerfionValueType::SlsMgrEnrichStatus, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateEnrichStatus', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
-    end;
-
-    local procedure updateItemVisibility(itemNo: Code[20]; newVisibility: Integer; modified: DateTime)
-    var
-        oldVisibility: Enum PerfionMagentoVisibilityType;
-        recItem: Record Item;
-        enumVisibility: Enum PerfionMagentoVisibilityType;
-        oldVisibilityText: Text;
-        newVisibilityText: Text;
-
-    begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            // Get the current visibility value
-            oldVisibility := recItem.MagentoVisibility;
-            // Convert incoming integer to enum value
-            case newVisibility of
-                1:
-                    enumVisibility := Enum::PerfionMagentoVisibilityType::NotVisible;
-                2:
-                    enumVisibility := Enum::PerfionMagentoVisibilityType::InCatalog;
-                3:
-                    enumVisibility := Enum::PerfionMagentoVisibilityType::InSearch;
-                4:
-                    enumVisibility := Enum::PerfionMagentoVisibilityType::Both;
-                else begin
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemVisibility', Enum::ErrorType::Catch, itemNo, 'Invalid Magento Visibility value: ' + Format(newVisibility));
-                    exit;
-                end;
-            end;
-
-            // Convert enum values to text
-            oldVisibilityText := Format(oldVisibility);
-            newVisibilityText := Format(enumVisibility);
-
-            if oldVisibility <> enumVisibility then begin
-                recItem.MagentoVisibility := enumVisibility;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newVisibilityText, oldVisibilityText, Enum::PerfionValueType::Visibility, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemVisibility', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
-    end;
-
-    local procedure updateItemCategory(itemNo: Code[20]; newCategory: Code[20]; modified: DateTime)
-    var
-        oldCategory: Code[20];
-        recItem: Record Item;
-
-    begin
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem."Item Category Code" <> newCategory then begin
-                oldCategory := recItem."Item Category Code";
-                recItem."Item Category Code" := newCategory;
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, newCategory, oldCategory, Enum::PerfionValueType::ItemCategory, modified);
-                    changeCount += 1;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateItemCategory', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-        end;
-    end;
-
-    local procedure updateCoreData(itemNo: Code[20]; newCoreResource: Code[20]; newCoreValue: Decimal; modified: DateTime)
-    var
-        oldCoreValue: Decimal;
-        recItem: Record Item;
-        oldCoreResource: Code[20];
-        magentoSync: Codeunit MagentoDataSync;
-        needSync: Boolean;
-
-    begin
-        needSync := false;
-        recItem.Reset();
-        recItem.SetFilter("No.", itemNo);
-        if recItem.FindFirst() then begin
-            if recItem."Core Sales Value" <> newCoreValue then begin
-                oldCoreValue := recItem."Core Sales Value";
-                recItem."Core Sales Value" := newCoreValue;
-
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreValue), Format(oldCoreValue), Enum::PerfionValueType::CoreValue, modified);
-                    changeCount += 1;
-                    needSync := true;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateCoreValue', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-
-            if recItem."Core Resource Name" <> newCoreResource then begin
-                oldCoreResource := recItem."Core Resource Name";
-                recItem."Core Resource Name" := newCoreResource;
-
-                if recItem.Modify() then begin
-                    dataLogHandler.LogItemUpdate(itemNo, Format(newCoreResource), Format(oldCoreResource), Enum::PerfionValueType::CoreResource, modified);
-                    changeCount += 1;
-                    needSync := true;
-                end
-                else
-                    logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'updateCoreResource', Enum::ErrorType::Catch, itemNo, GetLastErrorText());
-            end;
-
-            if needSync then
-                magentoSync.sendCoreData(itemNo);
-        end;
-    end;
-
 
     local procedure GenerateQueryContent(): Text
     var
-        jObjQuery: JsonObject;
-        jObjQueryInner: JsonObject;
-        jObjSelect: JsonObject;
-        jObjFrom: JsonObject;
+        jObjQuery, jObjQueryInner, jObjSelect, jObjFrom, jObjClause : JsonObject;
         jArrFrom: JsonArray;
-        jObjClause: JsonObject;
-
     begin
-
-        //LOGIC - Build the Select Query
-        //NOTE - Build the select object
         jObjSelect.Add('languages', 'EN');
         jObjSelect.Add('timezone', 'Eastern Standard Time');
         jObjSelect.Add('options', 'IncludeTotalCount,ExcludeFeatureDefinitions');
-
-        //NOTE - Add features (attributes) needed from Perfion. This is done in buildFeatures()
         jObjSelect.Add('Features', buildFeatures());
-
-        //NOTE - Add to main inner object
         jObjQueryInner.Add('Select', jObjSelect);
 
-        //LOGIC - Build the From Query
         jObjFrom.Add('id', '100');
         jArrFrom.Add(jObjFrom);
         jObjQueryInner.Add('From', jArrFrom);
 
-
-        //LOGIC - Build the Where Query
-        //NOTE - Build each clause with values. This is done in buildClauseArray()
-        //NOTE - Add all clauses to main clause object
         jObjClause.Add('Clauses', buildClauseArray());
-
-        //NOTE - Add main clause to the main Where object
         jObjQueryInner.Add('Where', jObjClause);
 
-        //LOGIC - Build the main query object
         jObjQuery.Add('Query', jObjQueryInner);
-
         exit(Format(jObjQuery));
     end;
 
@@ -703,16 +689,13 @@ codeunit 50368 PerfionDataSyncIn
         feature: Text;
         jObject: JsonObject;
         jArray: JsonArray;
-
     begin
         features := buildListFeatureTypes();
-
         foreach feature in features do begin
+            Clear(jObject);
             jObject.Add('id', feature);
             jArray.Add(jObject);
-            Clear(jObject);
         end;
-
         exit(jArray);
     end;
 
@@ -760,7 +743,6 @@ codeunit 50368 PerfionDataSyncIn
     var
         jObjValue: JsonObject;
     begin
-
         jObjValue.Add('id', 'brand');
         jObjValue.Add('operator', '=');
         jObjValue.Add('value', 'Normal');
@@ -770,9 +752,7 @@ codeunit 50368 PerfionDataSyncIn
     local procedure buildItemTypeClause(): JsonObject
     var
         jObjValue: JsonObject;
-        jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-
     begin
         jObjValue.Add('id', 'BCItemType');
         jObjValue.Add('operator', 'IN');
@@ -786,18 +766,10 @@ codeunit 50368 PerfionDataSyncIn
     local procedure buildClauses(featureType: Text): JsonObject
     var
         jObjValue: JsonObject;
-        jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-
     begin
-
-        //NOTE - example format Perfion expects 2024-05-04 00:00:00"
-
         jObjValue.Add('id', featureType + '.modifiedDate');
         jObjValue.Add('operator', 'BETWEEN');
-        //DEVELOPER - Testing Only
-        //jArrValue.Add('2024-05-10 00:00:00');
-        //jArrValue.Add('2024-05-10 23:00:00');
         jArrValue.Add(getFromDateText() + ' ' + getFromTimeText());
         jArrValue.Add(getToDateText() + ' ' + getToTimeText());
         jObjValue.Add('value', jArrValue);
@@ -807,18 +779,10 @@ codeunit 50368 PerfionDataSyncIn
     local procedure buildItemModifiedClause(): JsonObject
     var
         jObjValue: JsonObject;
-        jObjValueDetail: JsonObject;
         jArrValue: JsonArray;
-
     begin
-
-        //NOTE - example format Perfion expects 2024-05-04 00:00:00"
-
         jObjValue.Add('id', 'modifiedDate');
         jObjValue.Add('operator', 'BETWEEN');
-        //DEVELOPER - Testing Only
-        //jArrValue.Add('2024-05-10 00:00:00');
-        //jArrValue.Add('2024-05-10 23:00:00');
         jArrValue.Add(getFromDateText() + ' ' + getFromTimeText());
         jArrValue.Add(getToDateText() + ' ' + getToTimeText());
         jObjValue.Add('value', jArrValue);
@@ -827,12 +791,12 @@ codeunit 50368 PerfionDataSyncIn
 
     local procedure getFromDateText(): Text
     begin
-        exit(Format(perfionDataSyncIn.LastSync, 0, '<Year4>-<Month,2>-<Day,2>'));
+        exit(Format(lastPerfionSync, 0, '<Year4>-<Month,2>-<Day,2>'));
     end;
 
     local procedure getFromTimeText(): Text
     begin
-        exit(Format(perfionDataSyncIn.LastSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
+        exit(Format(lastPerfionSync, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
 
     local procedure getToDateText(): Text
@@ -850,76 +814,9 @@ codeunit 50368 PerfionDataSyncIn
         dataLogHandler: Codeunit PerfionDataInLogHandler;
         changeCount: Integer;
         apiHandler: Codeunit PerfionApiHandler;
-        currentItem: Code[20];
         perfionDataSyncIn: Record PerfionDataSyncIn;
         currDateTime: DateTime;
         perfionConfig: Record PerfionConfig;
         logManager: Codeunit LogManager;
         lastPerfionSync: DateTime;
-
-    /*
-
-    Example of post to send to Perfion to get results
-
-{
-   "Query": 
-   {
-      "Select": 
-      {
-         "languages": "EN",
-         "maxCount": "100",
-         "timezone": "Eastern Standard Time",
-         "options": "IncludeTotalCount,ExcludeFeatureDefinitions",
-         "Features": [
-            { "id": "PartNameProductDescription" },
-            { "id": "SAGroup2" },
-            { "id": "CoreResourceName"},
-            { "id": "Core"},
-            { "id": "Category" },
-            { "id": "PictureLocation"},
-            { "id": "PhotographyPickerInstructions"},
-            { "id": "BCUserNotes"},
-            { "id": "BCApplications"},
-            { "id": "Visibility"},
-            { "id": "P1SalesManagerEnrichStatus"},
-            { "id": "USERNotes"}
-        ]
-      },
-        "From": [ 
-            { "id": "100" }
-        ],
-      "Where": {
-         "Clauses": [ 
-             { "Clause": { "id": "brand", "operator": "=", "value": "Normal" } },
-             { "Clause": { "id": "BCItemType", "operator": "IN", "value": [ "Assembly", "Prod. Order", "Purchase" ] } },
-             { "Clause": { "id": "modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }},
-             { "Or": {} },
-             { "Clause": { "id": "PartNameProductDescription.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "SAGroup2.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "CoreResourceName.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-            { "Or": {} },
-             { "Clause": { "id": "Core.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-             { "Or": {} },
-             { "Clause": { "id": "PictureLocation.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-             { "Or": {} },
-             { "Clause": { "id": "PhotographyPickerInstructions.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-             { "Or": {} },
-             { "Clause": { "id": "BCUserNotes.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             },
-             { "Or": {} },
-             { "Clause": { "id": "BCApplications.modifiedDate", "operator": "BETWEEN", "value": [ "2024-11-22 07:00:00", "2024-11-22 11:04:00" ] }
-             }
-         ]
-      }
-   }
-}
-    */
 }
