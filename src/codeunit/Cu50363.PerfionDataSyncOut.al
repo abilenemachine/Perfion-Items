@@ -377,8 +377,8 @@ codeunit 50363 PerfionDataSyncOut
         tLines.SetRange("Transfer-from Code", location);
         tLines.SetFilter("Outstanding Qty. (Base)", '<>0');
         tLines.SetRange("Shipment Date", 0D, Today);
-        if tLines.CalcSums("Outstanding Quantity") then
-            value := tLines."Outstanding Quantity";
+        if tLines.CalcSums("Outstanding Qty. (Base)") then
+            value := tLines."Outstanding Qty. (Base)";
     end;
 
     procedure getProductionQty(itemNo: Code[20]; location: code[10]) value: Decimal
@@ -391,8 +391,8 @@ codeunit 50363 PerfionDataSyncOut
         prodCompLines.SetFilter(Status, '%1|%2', Enum::"Production Order Status"::"Firm Planned", Enum::"Production Order Status"::Released);
         prodCompLines.SetFilter("Remaining Qty. (Base)", '<>0');
         prodCompLines.SetRange("Due Date", 0D, Today);
-        if prodCompLines.CalcSums("Remaining Quantity") then
-            value := prodCompLines."Remaining Quantity";
+        if prodCompLines.CalcSums("Remaining Qty. (Base)") then
+            value := prodCompLines."Remaining Qty. (Base)";
     end;
 
     procedure getUnsellableQty(itemNo: Code[20]; location: Code[10]) value: Decimal
@@ -426,8 +426,8 @@ codeunit 50363 PerfionDataSyncOut
         assyLines.SetRange("Location Code", location);
         assyLines.SetRange("No.", itemNo);
 
-        if assyLines.CalcSums("Remaining Quantity") then
-            value := assyLines."Remaining Quantity";
+        if assyLines.CalcSums("Remaining Quantity (Base)") then
+            value := assyLines."Remaining Quantity (Base)";
     end;
 
     procedure getSalesLineQty(itemNo: Code[20]; location: code[10]) value: Decimal
@@ -443,8 +443,8 @@ codeunit 50363 PerfionDataSyncOut
         sLines.SetFilter("Outstanding Qty. (Base)", '<>0');
         sLines.SetRange("Shipment Date", 0D, Today);
 
-        if sLines.CalcSums("Outstanding Quantity") then
-            value := sLines."Outstanding Quantity";
+        if sLines.CalcSums("Outstanding Qty. (Base)") then
+            value := sLines."Outstanding Qty. (Base)";
 
     end;
 
