@@ -19,7 +19,7 @@ codeunit 50368 PerfionDataSyncIn
             lastPerfionSync := perfionSyncIn.LastSync;
 
         if perfionConfig.Get() then begin
-            if (CheckTime()) or (perfionConfig.fullSync) then
+            if (isAfter6pm()) or (perfionConfig.fullSync) then
                 fullSync := true
             else
                 fullSync := false;
@@ -67,15 +67,22 @@ codeunit 50368 PerfionDataSyncIn
         responseObject: JsonObject;
         dataToken, totalToken, itemsToken, valuesToken, valueItemToken, itemNumToken : JsonToken;
         itemDateCreated, itemDateModified, itemFeatureValue, itemFeatureName, featureId : JsonToken;
+        // NEW: per-item top-level modified
+        itemTopLevelModifiedToken: JsonToken;
+        itemTopLevelModifiedAtUtc: DateTime;
+        itemTopLevelModifiedText, modifiedDateTimeText : Text;
         itemNum: Code[20];
         tempCoreResource: Code[20];
         tempPicInstructions: Text;
         tempApplications, tempUserNotes : Text;
         tempCoreValue: Decimal;
         tempItemDateModified, createdDateTime, modifiedDateTime : DateTime;
-        hasCore, hasPicInstructions, hasApplications, hasUserNotes, itemModified, userNotesModifiedInBC, applicationsModifiedInBC : Boolean;
+        hasCore, hasPicInstructions, hasApplications, hasUserNotes, itemModified : Boolean;
+        didNotesInbound, didAppsInbound : Boolean;
         Profiler: Codeunit AbileneProfiler;
         t: Time;
+        State: Record "Perfion Field Sync State";
+        StateMgt: Codeunit "PerfionSyncStateMgt";
     begin
         responseObject.ReadFrom(response);
         if not responseObject.SelectToken('Data', dataToken) then exit;
@@ -98,6 +105,12 @@ codeunit 50368 PerfionDataSyncIn
 
             itemNum := CopyStr(itemNumToken.AsValue().AsCode(), 1, MaxStrLen(itemNum));
             if not IsValidItem(itemNum) then Continue;
+
+            // NEW: capture Items[].modifiedDate (top-level)
+            if itemsToken.SelectToken('modifiedDate', itemTopLevelModifiedToken) then begin
+                itemTopLevelModifiedText := itemTopLevelModifiedToken.AsValue().AsText();
+                itemTopLevelModifiedAtUtc := PerfionEasternTextToUtc(itemTopLevelModifiedText);
+            end;
 
             recItem.Reset();
             SetItemLoadFields(recItem);
@@ -122,9 +135,8 @@ codeunit 50368 PerfionDataSyncIn
             Clear(tempApplications);
             Clear(tempUserNotes);
             itemModified := false;
-
-            userNotesModifiedInBC := WasFieldModifiedAfterSync(itemNum, 60474, lastPerfionSync);
-            applicationsModifiedInBC := WasFieldModifiedAfterSync(itemNum, 60475, lastPerfionSync);
+            didNotesInbound := false;
+            didAppsInbound := false;
 
             if itemsToken.SelectToken('createdDate', itemDateCreated) then begin
                 createdDateTime := itemDateCreated.AsValue().AsDateTime();
@@ -138,7 +150,9 @@ codeunit 50368 PerfionDataSyncIn
                 valuesToken.SelectToken('value', itemFeatureValue);
                 valuesToken.SelectToken('featureName', itemFeatureName);
                 valuesToken.SelectToken('modifiedDate', itemDateModified);
-                modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+                //modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+                modifiedDateTimeText := itemDateModified.AsValue().AsText();
+                modifiedDateTime := PerfionEasternTextToUtc(modifiedDateTimeText);
 
                 case itemFeatureName.AsValue().AsText() of
                     'PartNameProductDescription':
@@ -157,13 +171,13 @@ codeunit 50368 PerfionDataSyncIn
                         begin
                             hasUserNotes := true;
                             tempUserNotes := itemFeatureValue.AsValue().AsText();
-                            tempItemDateModified := modifiedDateTime;
+                            //tempItemDateModified := modifiedDateTime;
                         end;
                     'BCApplications':
                         begin
                             hasApplications := true;
                             tempApplications := itemFeatureValue.AsValue().AsText();
-                            tempItemDateModified := modifiedDateTime;
+                            //tempItemDateModified := modifiedDateTime;
                         end;
                     'PhotographyPickerInstructions':
                         begin
@@ -184,12 +198,31 @@ codeunit 50368 PerfionDataSyncIn
 
             updateCoreData(recItem, tempCoreResource, tempCoreValue, hasCore, tempItemDateModified, itemModified);
             updatePictureInstructions(recItem, tempPicInstructions, hasPicInstructions, tempItemDateModified, itemModified);
-            updateItemUserNotes(recItem, tempUserNotes, hasUserNotes, userNotesModifiedInBC, tempItemDateModified, itemModified);
-            updateItemApplications(recItem, tempApplications, hasApplications, applicationsModifiedInBC, tempItemDateModified, itemModified);
+            updateItemUserNotes(recItem, tempUserNotes, hasUserNotes, itemTopLevelModifiedAtUtc, itemModified, didNotesInbound);
+            updateItemApplications(recItem, tempApplications, hasApplications, itemTopLevelModifiedAtUtc, itemModified, didAppsInbound);
 
             if itemModified then begin
-                if recItem.Modify(true) then
-                    changeCount += 1
+                if recItem.Modify(true) then begin
+                    changeCount += 1;
+
+                    StateMgt.GetOrCreate(State, recItem."No.");
+
+                    // NOW stamp inbound state so its timestamp is >= the Change Log entry
+                    if didNotesInbound then begin
+                        State."Notes Last Inbound At" := CurrentDateTime();
+                        State."Notes Awaiting Ack" := false;
+                    end;
+
+                    if didAppsInbound then begin
+                        State."Apps Last Inbound At" := CurrentDateTime();
+                        State."Apps Awaiting Ack" := false;
+                    end;
+
+                    if didNotesInbound or didAppsInbound then
+                        State.Modify();
+
+
+                end
                 else
                     logManager.logError(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'processPerfionResponse.Modify', Enum::ErrorType::Catch, recItem."No.", GetLastErrorText());
             end;
@@ -395,62 +428,187 @@ codeunit 50368 PerfionDataSyncIn
         end;
     end;
 
-    local procedure updateItemUserNotes(var recItem: Record Item; newUserNotes: Text; hasUserNotes: Boolean; modifiedInBC: Boolean; modified: DateTime; var itemModified: Boolean)
+    /// Applies inbound UserNotes data from Perfion to BC.
+    /// Rules:
+    /// 1. If Perfion sends a value → update BC, unless BC was edited more recently.
+    /// 2. If Perfion omits the field (treated as cleared) → clear BC only if Perfion’s item was modified after our last outbound/inbound and BC wasn’t touched since.
+    /// 3. Always update sync-state tracking (last inbound time, awaiting ack flag).
+    /// This ensures BC and Perfion stay consistent without overwriting user edits.
+    local procedure updateItemUserNotes(
+    var recItem: Record Item;
+    newUserNotes: Text;
+    hasUserNotes: Boolean;            // TRUE only if BCUserNotes feature exists in JSON
+    perfionItemModifiedAt: DateTime;  // top-level item.modifiedDate
+    var itemModified: Boolean;
+    var didNotesInbound: Boolean)
     var
-        oldUserNotes: Text;
+        State: Record "Perfion Field Sync State";
+        StateMgt: Codeunit "PerfionSyncStateMgt";
+        outboundCursor: DateTime;
+        inboundCursor: DateTime;
+        baseCursor: DateTime;
+        bcChangedSinceBase: Boolean;
         finalUserNotes: Text;
+        oldVal: Text;
     begin
-        if hasUserNotes then
-            finalUserNotes := newUserNotes
-        else
-            if not modifiedInBC then
-                finalUserNotes := ''
-            else
-                exit; // user changed in BC, don't touch
+        didNotesInbound := false;
 
-        if recItem.userNotes <> finalUserNotes then begin
-            oldUserNotes := recItem.userNotes;
-            recItem.userNotes := finalUserNotes;
-            itemModified := true;
-            dataLogHandler.LogItemUpdate(recItem."No.", finalUserNotes, oldUserNotes, Enum::PerfionValueType::UserNotes, modified);
+        // --- Ensure a state record exists for this item ---
+        StateMgt.GetOrCreate(State, recItem."No.");
+
+        // --- Establish the "decision cursor" ---
+        // OutboundCursor = when we last sent to Perfion
+        outboundCursor := State."Notes Last Outbound At";
+        // InboundCursor  = when we last accepted from Perfion
+        inboundCursor := State."Notes Last Inbound At";
+        // BaseCursor = the most recent of those two
+        baseCursor := outboundCursor;
+        if inboundCursor > baseCursor then
+            baseCursor := inboundCursor;
+
+        // --- Did someone in BC edit User Notes since that cursor? ---
+        bcChangedSinceBase := StateMgt.WasFieldModifiedAfterCursor(recItem."No.", recItem.FieldNo(UserNotes), baseCursor);
+
+        logManager.LogInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'UserNotes Include guard', recItem."No.", StrSubstNo('BaseCursor:%1 BcChanged:%2', baseCursor, Format(bcChangedSinceBase)));
+        logManager.LogInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'UserNotes Omission check', recItem."No.", StrSubstNo('PerfionModified:%1 BaseCursor:%2 BcChanged:%3', perfionItemModifiedAt, baseCursor, Format(bcChangedSinceBase)));
+
+        // === CASE 1: Feature INCLUDED in Perfion payload ===
+        if hasUserNotes then begin
+
+            // If BC was changed more recently, Perfion loses: skip update.
+            if bcChangedSinceBase then
+                exit;
+
+            // Normalize inbound text (trim + enforce max length)
+            finalUserNotes := CopyStr(TrimBoth(newUserNotes), 1, MaxStrLen(recItem.UserNotes));
+
+            // Apply only if different
+            if recItem.UserNotes <> finalUserNotes then begin
+                oldVal := recItem.UserNotes;
+                recItem.UserNotes := finalUserNotes;
+                itemModified := true;
+
+                // Log the change (Perfion → BC update)
+                dataLogHandler.LogItemUpdate(recItem."No.", finalUserNotes, oldVal, Enum::PerfionValueType::UserNotes, perfionItemModifiedAt);
+            end;
+            didNotesInbound := true;
+            exit;
+        end;
+
+        // === CASE 2: Feature OMITTED in Perfion payload ===
+        // Omission = Perfion intentionally cleared the value.
+        // We only honor it if:
+        //   (a) Perfion's item.modifiedDate is later than our baseCursor
+        //   (b) Nobody in BC has changed the field since baseCursor
+        if (perfionItemModifiedAt > baseCursor) and (not bcChangedSinceBase) then begin
+
+            // Clear only if BC still holds a value
+            if recItem.UserNotes <> '' then begin
+                oldVal := recItem.UserNotes;
+                recItem.UserNotes := '';
+                itemModified := true;
+                didNotesInbound := true;
+
+                // Log the clear (Perfion → BC update)
+                dataLogHandler.LogItemUpdate(recItem."No.", '', oldVal, Enum::PerfionValueType::UserNotes, perfionItemModifiedAt);
+            end;
         end;
     end;
 
-    local procedure updateItemApplications(var recItem: Record Item; newApplications: Text; hasApplications: Boolean; modifiedInBC: Boolean; modified: DateTime; var itemModified: Boolean)
+    /// Applies inbound Application data from Perfion to BC.
+    /// Rules:
+    /// 1. If Perfion sends a value → update BC, unless BC was edited more recently.
+    /// 2. If Perfion omits the field (treated as cleared) → clear BC only if Perfion’s item was modified after our last outbound/inbound and BC wasn’t touched since.
+    /// 3. Always update sync-state tracking (last inbound time, awaiting ack flag).
+    /// This ensures BC and Perfion stay consistent without overwriting user edits.
+    local procedure updateItemApplications(
+    var recItem: Record Item;
+    newApplications: Text;
+    hasApplications: Boolean;         // TRUE only if BCApplications feature present in JSON
+    perfionItemModifiedAt: DateTime;  // top-level item.modifiedDate from Perfion
+    var itemModified: Boolean;
+    var didApplicationsInbound: Boolean)
     var
-        oldApplications: Text;
+        State: Record "Perfion Field Sync State";
+        StateMgt: Codeunit "PerfionSyncStateMgt";
+        outboundCursor: DateTime;
+        inboundCursor: DateTime;
+        baseCursor: DateTime;
+        bcChangedSinceBase: Boolean;
         finalApplications: Text;
+        oldVal: Text;
     begin
-        if hasApplications then
-            finalApplications := newApplications
-        else
-            if not modifiedInBC then
-                finalApplications := ''
-            else
-                exit; // user changed in BC, don't touch
 
-        if recItem.application <> finalApplications then begin
-            oldApplications := recItem.application;
-            recItem.application := finalApplications;
-            itemModified := true;
-            dataLogHandler.LogItemUpdate(recItem."No.", finalApplications, oldApplications, Enum::PerfionValueType::Applications, modified);
+        didApplicationsInbound := false;
+        // --- Ensure a state record exists for this item ---
+        StateMgt.GetOrCreate(State, recItem."No.");
+
+        // --- Establish the "decision cursor" ---
+        // OutboundCursor = when we last sent to Perfion
+        outboundCursor := State."Apps Last Outbound At";
+        // InboundCursor  = when we last accepted from Perfion
+        inboundCursor := State."Apps Last Inbound At";
+        // BaseCursor = the most recent of those two
+        baseCursor := outboundCursor;
+        if inboundCursor > baseCursor then
+            baseCursor := inboundCursor;
+
+        // --- Did someone in BC edit Applications since that cursor? ---
+        bcChangedSinceBase := StateMgt.WasFieldModifiedAfterCursor(recItem."No.", recItem.FieldNo(application), baseCursor);
+
+        logManager.LogInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'Applications Include guard', recItem."No.", StrSubstNo('BaseCursor:%1 BcChanged:%2', baseCursor, Format(bcChangedSinceBase)));
+        logManager.LogInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'Applications Omission check', recItem."No.", StrSubstNo('PerfionModified:%1 BaseCursor:%2 BcChanged:%3', perfionItemModifiedAt, baseCursor, Format(bcChangedSinceBase)));
+
+        // === CASE 1: Feature INCLUDED in Perfion payload ===
+        if hasApplications then begin
+
+            // If BC was changed more recently, Perfion loses: skip update.
+            if bcChangedSinceBase then
+                exit;
+
+            // Normalize inbound text (trim + enforce max length)
+            finalApplications := CopyStr(TrimBoth(newApplications), 1, MaxStrLen(recItem.application));
+
+            // Apply only if different
+            if recItem.application <> finalApplications then begin
+                oldVal := recItem.application;
+                recItem.application := finalApplications;
+                itemModified := true;
+
+                // Log the change (Perfion → BC update)
+                dataLogHandler.LogItemUpdate(recItem."No.", finalApplications, oldVal, Enum::PerfionValueType::Applications, perfionItemModifiedAt);
+            end;
+            didApplicationsInbound := true;
+            exit;
+        end;
+
+        // === CASE 2: Feature OMITTED in Perfion payload ===
+        // Omission = Perfion intentionally cleared the value.
+        // We only honor it if:
+        //   (a) Perfion's item.modifiedDate is later than our baseCursor
+        //   (b) Nobody in BC has changed the field since baseCursor
+        if (perfionItemModifiedAt > baseCursor) and (not bcChangedSinceBase) then begin
+
+            // Clear only if BC still holds a value
+            if recItem.application <> '' then begin
+                oldVal := recItem.application;
+                recItem.application := '';
+                itemModified := true;
+                didApplicationsInbound := true;
+
+                // Log the clear (Perfion → BC update)
+                dataLogHandler.LogItemUpdate(recItem."No.", '', oldVal, Enum::PerfionValueType::Applications, perfionItemModifiedAt);
+            end;
         end;
     end;
 
-    local procedure WasFieldModifiedAfterSync(itemNo: Code[20]; FieldNo: Integer; lastSync: DateTime): Boolean
-    var
-        changeLogEntry: Record "Change Log Entry";
+
+    local procedure TrimBoth(Value: Text): Text
     begin
-        if lastSync = 0DT then exit(false);
-
-        changeLogEntry.Reset();
-        changeLogEntry.SetRange("Table No.", Database::Item);
-        changeLogEntry.SetRange("Field No.", FieldNo);
-        changeLogEntry.SetRange("Primary Key Field 1 Value", itemNo);
-        changeLogEntry.SetFilter("Date and Time", '>=%1', lastSync);
-
-        logManager.LogInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync In", 'WasFieldModifiedAfterSync', ItemNo, 'Is changeLogEntry empty: ' + Format(changeLogEntry.IsEmpty()));
-        exit(not changeLogEntry.IsEmpty());
+        // remove leading spaces
+        Value := DelChr(Value, '<', ' ');
+        // remove trailing spaces
+        exit(DelChr(Value, '>', ' '));
     end;
 
     local procedure SetItemLoadFields(var recItem: Record Item)
@@ -476,7 +634,7 @@ codeunit 50368 PerfionDataSyncIn
         end;
     end;
 
-    procedure CheckTime(): Boolean
+    procedure isAfter6pm(): Boolean
     var
         MyTime: Time;
         CurrentTime: Time;
@@ -649,6 +807,59 @@ codeunit 50368 PerfionDataSyncIn
     begin
         exit(Format(currDateTime, 0, '<Hours24,2>:<Minutes,2>:<Seconds,2>'));
     end;
+
+    // Parse an EST/EDT timestamp string from Perfion and return UTC DateTime
+    local procedure PerfionEasternTextToUtc(tsText: Text): DateTime
+    var
+        d: Date;
+        t: Time;
+        dtLocal: DateTime; // clock time in Eastern, no zone attached
+        offset: Duration;
+    begin
+        // Perfion returns e.g. '2025-09-11T13:41:00.000'
+        // Extract date + time parts and build a DateTime (still "local clock time")
+        Evaluate(d, CopyStr(tsText, 1, 10));        // 'YYYY-MM-DD'
+        Evaluate(t, CopyStr(tsText, 12, 8));        // 'HH:MM:SS'
+        dtLocal := CreateDateTime(d, t);
+
+        // Determine UTC offset for Eastern on that date (DST-aware)
+        if IsEasternDst(d) then
+            offset := 4    // EDT = UTC-4  -> to get UTC add +4h
+        else
+            offset := 5;    // EST = UTC-5  -> to get UTC add +5h
+
+        exit(dtLocal + offset);
+    end;
+
+    // True if 'd' falls within US Eastern Daylight Saving Time for that year
+    local procedure IsEasternDst(d: Date): Boolean
+    var
+        y: Integer;
+        dstStart: Date; // 2:00 AM local, second Sunday in March
+        dstEnd: Date;   // 2:00 AM local, first Sunday in November
+    begin
+        y := Date2DMY(d, 3);
+        dstStart := NthWeekdayOfMonth(y, 3, 1, 2);  // Sunday=1, 2nd Sunday in March
+        dstEnd := NthWeekdayOfMonth(y, 11, 1, 1); // Sunday=1, 1st Sunday in Nov.
+
+        // Between 2:00 AM on dstStart and 2:00 AM on dstEnd (exclusive)
+        exit((d > dstStart) and (d < dstEnd));
+    end;
+
+    // Return the date of the Nth <weekday> in <month> of <year>.
+    // weekday: 1=Sunday … 7=Saturday
+    local procedure NthWeekdayOfMonth(year: Integer; month: Integer; weekday: Integer; n: Integer): Date
+    var
+        firstOfMonth: Date;
+        firstWeekday: Integer;
+        deltaDays: Integer;
+    begin
+        firstOfMonth := DMY2Date(1, month, year);
+        firstWeekday := Date2DWY(firstOfMonth, 1); // 1=Sunday … 7=Saturday
+        deltaDays := (weekday - firstWeekday + 7) mod 7; // days from 1st -> first target weekday
+        exit(CalcDate('+' + Format(deltaDays + (n - 1) * 7) + 'D', firstOfMonth));
+    end;
+
 
     var
         fullSync: Boolean;

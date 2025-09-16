@@ -101,6 +101,7 @@ codeunit 50363 PerfionDataSyncOut
 
                 recPerfionItems.application := bcItems.application;
                 recPerfionItems.userNotes := bcItems.userNotes;
+                UpdateOutboundFieldState(bcItems);
 
                 Profiler.Start('GetUsageLast12Months', t);
                 recPerfionItems.demand12months := GetUsageLast12Months(bcItems."No.");
@@ -152,6 +153,45 @@ codeunit 50363 PerfionDataSyncOut
         UnsellableBins: Dictionary of [Code[20], Boolean]; // set of bin codes
         UnsellableTotals: Dictionary of [Text, Decimal];   // key: ItemNo|Location
         UnsellableCacheReady: Boolean;
+
+
+    local procedure UpdateOutboundFieldState(var Item: Record Item)
+    var
+        State: Record "Perfion Field Sync State";
+        StateMgt: Codeunit "PerfionSyncStateMgt";
+        nowDT: DateTime;
+        notesHash: Text[44];
+        appsHash: Text[44];
+        didChange: Boolean;
+    begin
+        StateMgt.GetOrCreate(State, Item."No.");
+        nowDT := CurrentDateTime();
+
+        // Hash current BC values (TextHash already normalizes/strips spaces per your impl)
+        notesHash := StateMgt.TextHash(Item.userNotes);
+        appsHash := StateMgt.TextHash(Item.application);
+
+        // --- User Notes ---
+        if notesHash <> State."Notes Last Outbound Hash" then begin
+            State."Notes Last Outbound At" := nowDT;
+            State."Notes Last Outbound Hash" := notesHash;
+            State."Notes Awaiting Ack" := true;
+            didChange := true;
+        end;
+
+        // --- Applications ---
+        if appsHash <> State."Apps Last Outbound Hash" then begin
+            State."Apps Last Outbound At" := nowDT;
+            State."Apps Last Outbound Hash" := appsHash;
+            State."Apps Awaiting Ack" := true;
+            didChange := true;
+        end;
+
+        if didChange then
+            State.Modify();
+    end;
+
+
 
     local procedure InitUnsellableFilters()
     var

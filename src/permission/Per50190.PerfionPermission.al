@@ -40,6 +40,10 @@ permissionset 50190 PerfionPermission
 
         tabledata MagentoLog = RIMD,
         table MagentoLog = X,
-        page MagentoLog = X;
+        page MagentoLog = X,
+
+        tabledata "Perfion Field Sync State" = RIMD,
+        table "Perfion Field Sync State" = X,
+        page "Perfion Field Sync State List" = X
     ;
 }
