@@ -110,6 +110,12 @@ codeunit 50363 PerfionDataSyncOut
 
                 recPerfionItems.CountryOfOrigin := getCountryOfOrigin(bcItems);
 
+                // last receipt date
+                // ILE Doc type purchase receipt or entry type output
+                // location filter KS, SC, SD
+
+                // turns
+
                 if bcItems."Assembly BOM" then begin
                     recPerfionItems."Quantity KS" := getBomComponents(bcItems."No.", 'KS');
                     recPerfionItems."Quantity SC" := getBomComponents(bcItems."No.", 'SC');

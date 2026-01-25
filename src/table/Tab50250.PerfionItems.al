@@ -12,7 +12,7 @@ table 50250 PerfionItems
         }
         field(2; Description; Text[100])
         {
-            Caption = 'Description 2';
+            Caption = 'Description';
         }
         field(3; GTIN; Code[14])
         {
