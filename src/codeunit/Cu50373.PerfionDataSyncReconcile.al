@@ -308,7 +308,7 @@ codeunit 50373 PerfionDataSyncReconcile
 
         Recipients.Add('lfritts@abilenemachine.com');
         Recipients.Add('wmarkley@abilenemachine.com');
-        Recipients.Add('abaker@abilenemachine.com');
+        Recipients.Add('kjustice@abilenemachine.com');
         dataLogHandler.LogCatUpdate(catCode, '', '', ValueType::None, ReconcileType::EmailSent);
 
         Subject := StrSubstNo(Title, catCode);
