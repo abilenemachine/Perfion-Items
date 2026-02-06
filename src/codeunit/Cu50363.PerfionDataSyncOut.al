@@ -17,8 +17,8 @@ codeunit 50363 PerfionDataSyncOut
         logManager: Codeunit LogManager;
     begin
         startTime := Time;
-        Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", ProfilerConfig.IsEnabled(), ProfilerConfig.GetThresholdSec());
-        Profiler.Start('onRun', tOnRun);
+        //Profiler.BeginRun(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", ProfilerConfig.IsEnabled(), ProfilerConfig.GetThresholdSec());
+        //Profiler.Start('onRun', tOnRun);
         recPerfionItems.Reset();
         recPerfionItems.DeleteAll();
         InitUnsellableFilters();
@@ -43,9 +43,9 @@ codeunit 50363 PerfionDataSyncOut
         );
 
         InitUnsellableBins(); // builds the bin set
-        Profiler.Start('PreloadUnsellableTotals', t);
+        //Profiler.Start('PreloadUnsellableTotals', t);
         PreloadUnsellableTotals('KS|SC|SD|MT'); // scans Bin Content once and fills totals
-        Profiler.Stop('PreloadUnsellableTotals', t, '', '');
+        //Profiler.Stop('PreloadUnsellableTotals', t, '', '');
 
         bcItems.SetAutoCalcFields("Assembly BOM");
 
@@ -64,14 +64,14 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems."Purch. Unit of Measure" := bcItems."Purch. Unit of Measure";
 
                 ItemUOM.Reset();
-                Profiler.Start('getUom', t);
+                //Profiler.Start('getUom', t);
                 ItemUOM := getUom(bcItems."No.");
                 recPerfionItems.Length := ItemUOM.Length;
                 recPerfionItems.Width := ItemUOM.Width;
                 recPerfionItems.Height := ItemUOM.Height;
                 recPerfionItems.Weight := ItemUOM.Weight;
                 recPerfionItems.Cubage := ItemUOM.Cubage;
-                Profiler.Stop('getUom', t, bcItems."No.", '');
+                //Profiler.Stop('getUom', t, bcItems."No.", '');
 
                 recPerfionItems."Qty per UOM Purch" := getQtyPerUom(bcItems."No.", bcItems."Purch. Unit of Measure");
                 recPerfionItems."Qty per UOM Sales" := getQtyPerUom(bcItems."No.", bcItems."Sales Unit of Measure");
@@ -81,15 +81,15 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.Oversize := getOversize(bcItems);
 
                 recPerfionItems."Item Class Description" := getItemClass(bcItems."No.");
-                Profiler.Start('getVendor', t);
+                //Profiler.Start('getVendor', t);
                 recPerfionItems."Vendor No." := getVendor(bcItems);
-                Profiler.Stop('getVendor', t, bcItems."No.", '');
+                //Profiler.Stop('getVendor', t, bcItems."No.", '');
 
                 recPerfionItems."Unit Cost" := bcItems."Unit Cost";
 
-                Profiler.Start('getPurchasePrice', t);
+                //Profiler.Start('getPurchasePrice', t);
                 Values := getPurchasePrice(bcItems);
-                Profiler.Stop('getPurchasePrice', t, bcItems."No.", '');
+                //Profiler.Stop('getPurchasePrice', t, bcItems."No.", '');
                 recPerfionItems."Vendor Cost" := Values.Get(1);
                 recPerfionItems."Vendor Core" := Values.Get(2);
 
@@ -103,9 +103,9 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems.userNotes := bcItems.userNotes;
                 UpdateOutboundFieldState(bcItems);
 
-                Profiler.Start('GetUsageLast12Months', t);
+                //Profiler.Start('GetUsageLast12Months', t);
                 recPerfionItems.demand12months := GetUsageLast12Months(bcItems."No.");
-                Profiler.Stop('GetUsageLast12Months', t, bcItems."No.", '');
+                //Profiler.Stop('GetUsageLast12Months', t, bcItems."No.", '');
                 recPerfionItems.demand1month := GetUsageLast1Month(bcItems."No.");
 
                 recPerfionItems.CountryOfOrigin := getCountryOfOrigin(bcItems);
@@ -113,8 +113,10 @@ codeunit 50363 PerfionDataSyncOut
                 // last receipt date
                 // ILE Doc type purchase receipt or entry type output
                 // location filter KS, SC, SD
+                recPerfionItems."Last Reciept Date" := GetLastReceiptOrOutputDate(bcItems."No.");
 
                 // turns
+                recPerfionItems.inventoryTurns := CalcItemTurns365(bcItems."No.");
 
                 if bcItems."Assembly BOM" then begin
                     recPerfionItems."Quantity KS" := getBomComponents(bcItems."No.", 'KS');
@@ -129,9 +131,9 @@ codeunit 50363 PerfionDataSyncOut
                     recPerfionItems."Quantity MT" := getQty(bcItems."No.", 'MT');
                 end;
 
-                Profiler.Start('recPerfionItems.Insert', t);
+                //Profiler.Start('recPerfionItems.Insert', t);
                 recPerfionItems.Insert();
-                Profiler.Stop('recPerfionItems.Insert', t, bcItems."No.", '');
+                //Profiler.Stop('recPerfionItems.Insert', t, bcItems."No.", '');
                 changeCount += 1;
 
             until bcItems.Next() = 0;
@@ -146,8 +148,8 @@ codeunit 50363 PerfionDataSyncOut
         executionTime := endTime - startTime;
         logManager.logInfo(Enum::AppCode::Perfion, Enum::AppProcess::"Data Sync Out", 'OnRun complete', '', Format(executionTime));
 
-        Profiler.Stop('onRun', tOnRun, '', '');
-        Profiler.Flush();
+        //Profiler.Stop('onRun', tOnRun, '', '');
+        //Profiler.Flush();
     end;
 
     var
@@ -755,6 +757,83 @@ codeunit 50363 PerfionDataSyncOut
         ILE.CalcSums(Quantity);
         exit(ILE.Quantity);
     end;
+
+    procedure CalcItemTurns365(ItemNo: Code[20]): Decimal
+    var
+        ValueEntry: Record "Value Entry";
+        Cogs365: Decimal;
+        InvValue: Decimal;
+    begin
+
+        Cogs365 := CalcCogsSalesInvoiceActual365(ItemNo, Today);
+        InvValue := CalcInventoryValueAsOf(ItemNo);
+
+        if InvValue <= 0 then
+            exit(0);
+
+        exit(Round(Cogs365 / InvValue));
+    end;
+
+    local procedure CalcCogsSalesInvoiceActual365(ItemNo: Code[20]; AsOfDate: Date): Decimal
+    var
+        ValueEntry: Record "Value Entry";
+        StartDate: Date;
+    begin
+        StartDate := AsOfDate - 365;
+
+        ValueEntry.Reset();
+        ValueEntry.SetCurrentKey("Item No.", "Posting Date");
+        ValueEntry.SetRange("Item No.", ItemNo);
+        ValueEntry.SetRange("Posting Date", StartDate, AsOfDate);
+        ValueEntry.SetRange("Item Ledger Entry Type", ValueEntry."Item Ledger Entry Type"::Sale);
+        ValueEntry.SetRange("Document Type", ValueEntry."Document Type"::"Sales Invoice");
+        
+        ValueEntry.CalcSums("Cost Amount (Actual)");
+        // In BC this will usually be negative for sales; make it positive to match your Power BI ABS behavior
+        exit(Abs(ValueEntry."Cost Amount (Actual)"));
+    end;
+
+    local procedure CalcInventoryValueAsOf(ItemNo: Code[20]): Decimal
+    var
+        ValueEntry: Record "Value Entry";
+        Amount: Decimal;
+    begin
+        ValueEntry.Reset();
+        ValueEntry.SetRange("Item No.", ItemNo);
+        ValueEntry.SetFilter("Posting Date", '..%1', Today);
+
+        // If you want "Inventory Value AsOf Today" to include expected like many reports do:
+        // VE.CalcSums("Cost Amount (Actual)", "Cost Amount (Expected)");
+        // exit(VE."Cost Amount (Actual)" + VE."Cost Amount (Expected)");
+
+        // If you want actual-only:
+        ValueEntry.CalcSums("Cost Amount (Actual)");
+        exit(ValueEntry."Cost Amount (Actual)");
+    end;
+
+    procedure GetLastReceiptOrOutputDate(ItemNo: Code[20]): Date
+    var
+        ILE: Record "Item Ledger Entry";
+    begin
+        ILE.Reset();
+
+        // Use an index that can support "latest Posting Date" per item.
+        // This key exists in many BC environments; if it doesn't, AL will still compile,
+        // but performance depends on available keys.
+        ILE.SetCurrentKey("Item No.", "Posting Date");
+        ILE.SetRange("Item No.", ItemNo);
+
+        // Inbound inventory: vendor purchase receipts + production output
+        ILE.SetFilter("Entry Type", '%1|%2',
+            ILE."Entry Type"::Purchase,
+            ILE."Entry Type"::Output);
+
+        if ILE.FindLast() then
+            exit(ILE."Posting Date");
+
+        exit(0D);
+    end;
+
 
 
 }

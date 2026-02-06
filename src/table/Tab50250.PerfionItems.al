@@ -69,6 +69,10 @@ table 50250 PerfionItems
             Caption = 'Vendor Core';
             Editable = false;
         }
+        field(15; "Last Reciept Date"; Date)
+        {
+            Caption = 'Last Receipt Date';
+        }
         /* Removed per Lovisa 3/25/24
 
         Lovisa - that would be fine then if you want to proceed with removing the "VendorCostDate" column from your side.  
@@ -169,6 +173,10 @@ table 50250 PerfionItems
         field(53; demand1month; Decimal)
         {
             Caption = 'Demand 1 Month';
+        }
+        field(54; inventoryTurns; Decimal)
+        {
+            Caption = 'Inventory Turns';
         }
 
         /* table 14000584 "LAX DP Surplus Inventory Value" */

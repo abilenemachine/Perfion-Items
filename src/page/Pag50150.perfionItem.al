@@ -64,6 +64,9 @@ page 50150 perfionItem
                 field(QtyPerUomPurch; Rec."Qty per UOM Purch") { }
                 field(QtyPerUomSales; Rec."Qty per UOM Sales") { }
 
+                field(InventoryTurns;Rec.inventoryTurns) {}
+                field(LastRecieptDate;Rec."Last Reciept Date") {}
+
             }
         }
     }
