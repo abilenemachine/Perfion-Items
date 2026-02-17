@@ -814,26 +814,23 @@ codeunit 50363 PerfionDataSyncOut
     procedure GetLastReceiptOrOutputDate(ItemNo: Code[20]): Date
     var
         ILE: Record "Item Ledger Entry";
+        FallbackDate: Date;
     begin
-        ILE.Reset();
+        FallbackDate := DMY2Date(1, 1, 1980);
 
-        // Use an index that can support "latest Posting Date" per item.
-        // This key exists in many BC environments; if it doesn't, AL will still compile,
-        // but performance depends on available keys.
+        ILE.Reset();
         ILE.SetCurrentKey("Item No.", "Posting Date");
         ILE.SetRange("Item No.", ItemNo);
 
-        // Inbound inventory: vendor purchase receipts + production output
         ILE.SetFilter("Entry Type", '%1|%2',
             ILE."Entry Type"::Purchase,
             ILE."Entry Type"::Output);
 
-        if ILE.FindLast() then
-            exit(ILE."Posting Date");
+        if ILE.FindLast() then begin
+            if ILE."Posting Date" <> 0D then
+                exit(ILE."Posting Date");
+        end;
 
-        exit(0D);
+        exit(FallbackDate);
     end;
-
-
-
 }
