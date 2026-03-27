@@ -156,15 +156,22 @@ codeunit 50373 PerfionDataSyncReconcile
     begin
         changeCount := 0;
         responseObject.ReadFrom(response);
-        responseObject.SelectToken('Data', dataToken);
-        dataToken.SelectToken('totalCount', totalToken);
-        dataToken.SelectToken('Items', itemsToken);
+
+        if not responseObject.SelectToken('Data', dataToken) then
+            exit;
+        if not dataToken.SelectToken('totalCount', totalToken) then
+            exit;
+        if not dataToken.SelectToken('Items', itemsToken) then
+            exit;
 
         foreach itemsToken in itemsToken.AsArray() do begin
-            itemsToken.SelectToken('Values', valuesToken);
-            itemsToken.SelectToken('featureId', featureIdToken);
-            itemsToken.SelectToken('brand', brandToken);
-            itemsToken.SelectToken('id', idToken);
+
+            if not itemsToken.SelectToken('featureId', featureIdToken) then continue;
+            if not itemsToken.SelectToken('brand', brandToken) then continue;
+            if not itemsToken.SelectToken('id', idToken) then continue;
+            if not itemsToken.SelectToken('Values', valuesToken) then continue;
+            if valuesToken.AsArray().Count() = 0 then continue;
+
             catId := idToken.AsValue().AsInteger();
 
             if (featureIdToken.AsValue().AsInteger() = 102) and (brandToken.AsValue().AsText() = 'Virtual') then begin
@@ -185,13 +192,6 @@ codeunit 50373 PerfionDataSyncReconcile
         end;
 
         reconcileItemCategory();
-        /*
-        if recItemCatTemp.FindSet() then begin
-            repeat
-                logHandler.enterLog(Process::"Reconcile", recItemCatTemp.Description, recItemCatTemp.Code, recItemCatTemp."Parent Category");
-            until recItemCatTemp.Next() = 0;
-        end;
-        */
     end;
 
     local procedure reconcileItemCategory()

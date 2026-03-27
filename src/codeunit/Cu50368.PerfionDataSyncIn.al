@@ -94,7 +94,7 @@ codeunit 50368 PerfionDataSyncIn
         end;
 
         if not dataToken.SelectToken('Items', itemsToken) then exit;
-        Profiler.Start('itemsToken.AsArray', t);
+        //Profiler.Start('itemsToken.AsArray', t);
 
         foreach itemsToken in itemsToken.AsArray() do begin
             if not itemsToken.SelectToken('Values', valuesToken) then Continue;
@@ -147,12 +147,15 @@ codeunit 50368 PerfionDataSyncIn
                 if not valuesToken.SelectToken('featureId', featureId) then Continue;
                 if featureId.AsValue().AsInteger() = 100 then Continue;
 
-                valuesToken.SelectToken('value', itemFeatureValue);
-                valuesToken.SelectToken('featureName', itemFeatureName);
-                valuesToken.SelectToken('modifiedDate', itemDateModified);
-                //modifiedDateTime := itemDateModified.AsValue().AsDateTime();
+                if not valuesToken.SelectToken('featureName', itemFeatureName) then continue;
+                if not valuesToken.SelectToken('modifiedDate', itemDateModified) then continue;
+
                 modifiedDateTimeText := itemDateModified.AsValue().AsText();
                 modifiedDateTime := PerfionEasternTextToUtc(modifiedDateTimeText);
+
+                Clear(itemFeatureValue);
+
+                if not valuesToken.SelectToken('value', itemFeatureValue) then continue;
 
                 case itemFeatureName.AsValue().AsText() of
                     'PartNameProductDescription':
@@ -171,13 +174,11 @@ codeunit 50368 PerfionDataSyncIn
                         begin
                             hasUserNotes := true;
                             tempUserNotes := itemFeatureValue.AsValue().AsText();
-                            //tempItemDateModified := modifiedDateTime;
                         end;
                     'BCApplications':
                         begin
                             hasApplications := true;
                             tempApplications := itemFeatureValue.AsValue().AsText();
-                            //tempItemDateModified := modifiedDateTime;
                         end;
                     'PhotographyPickerInstructions':
                         begin
@@ -222,7 +223,7 @@ codeunit 50368 PerfionDataSyncIn
             end;
         end;
 
-        Profiler.Stop('itemsToken.AsArray', t, '', '');
+        //Profiler.Stop('itemsToken.AsArray', t, '', '');
 
         UpdateSyncStatus(changeCount, totalToken.AsValue().AsInteger());
     end;
