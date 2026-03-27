@@ -70,14 +70,16 @@ codeunit 50373 PerfionDataSyncReconcile
     begin
 
         responseObject.ReadFrom(response);
-        responseObject.SelectToken('Data', dataToken);
-        dataToken.SelectToken('Items', itemsToken);
+        if not responseObject.SelectToken('Data', dataToken) then
+            exit;
+        if not dataToken.SelectToken('Items', itemsToken) then
+            exit;
 
         foreach itemsToken in itemsToken.AsArray() do begin
-            itemsToken.SelectToken('Values', valuesToken);
-            itemsToken.SelectToken('featureId', featureIdToken);
-            itemsToken.SelectToken('id', mainIdToken);
 
+            if not itemsToken.SelectToken('featureId', featureIdToken) then continue;
+            if not itemsToken.SelectToken('id', idToken) then continue;
+            if not itemsToken.SelectToken('Values', valuesToken) then continue;
 
             if featureIdToken.AsValue().AsInteger() = 327 then begin
 
@@ -170,7 +172,6 @@ codeunit 50373 PerfionDataSyncReconcile
             if not itemsToken.SelectToken('brand', brandToken) then continue;
             if not itemsToken.SelectToken('id', idToken) then continue;
             if not itemsToken.SelectToken('Values', valuesToken) then continue;
-            if valuesToken.AsArray().Count() = 0 then continue;
 
             catId := idToken.AsValue().AsInteger();
 
