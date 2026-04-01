@@ -94,15 +94,15 @@ codeunit 50373 PerfionDataSyncReconcile
                     valuesToken.SelectToken('featureName', itemFeatureName);
 
                     if itemFeatureName.AsValue().AsText() = 'Value' then begin
-                        valuesToken.SelectToken('value', codeToken);
+                        if not valuesToken.SelectToken('value', codeToken) then continue;
                         catCode := codeToken.AsValue().AsCode();
                     end
                     else if itemFeatureName.AsValue().AsText() = 'Category' then begin
-                        valuesToken.SelectToken('value', descriptionToken);
+                        if not valuesToken.SelectToken('value', descriptionToken) then continue;
                         catDescription := descriptionToken.AsValue().AsText();
-                        valuesToken.SelectToken('id', idToken);
+                        if not valuesToken.SelectToken('id', idToken) then continue;
                         catId := idToken.AsValue().AsInteger();
-                        valuesToken.SelectToken('parentID', parentIdToken);
+                        if not valuesToken.SelectToken('parentID', parentIdToken) then continue;
                         catParentId := parentIdToken.AsValue().AsInteger();
                         catParentCat := DelStr(catCode, 4, 3);
                     end
@@ -309,7 +309,7 @@ codeunit 50373 PerfionDataSyncReconcile
 
         Recipients.Add('lfritts@abilenemachine.com');
         Recipients.Add('wmarkley@abilenemachine.com');
-        Recipients.Add('kjustice@abilenemachine.com');
+        Recipients.Add('kthomas@abilenemachine.com');
         dataLogHandler.LogCatUpdate(catCode, '', '', ValueType::None, ReconcileType::EmailSent);
 
         Subject := StrSubstNo(Title, catCode);
