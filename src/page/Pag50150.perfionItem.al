@@ -44,7 +44,7 @@ page 50150 perfionItem
                 field(QuantityMt; Rec."Quantity MT") { }
 
                 field(ExcessAmount; Rec."Excess Amount") { }
-
+                field(Demand12MonthsRetail; Rec.demand12monthsretail) { }
                 field(Demand12Months; Rec.demand12months) { }
                 field(Demand1Month; Rec.demand1month) { }
 

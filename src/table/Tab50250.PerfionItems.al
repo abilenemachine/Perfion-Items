@@ -170,6 +170,10 @@ table 50250 PerfionItems
         {
             Caption = 'Demand 12 Months';
         }
+        field(56; demand12monthsretail; Decimal)
+        {
+            Caption = 'Retail Demand 12 Months';
+        }
         field(53; demand1month; Decimal)
         {
             Caption = 'Demand 1 Month';

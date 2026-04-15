@@ -105,6 +105,8 @@ codeunit 50363 PerfionDataSyncOut
 
                 //Profiler.Start('GetUsageLast12Months', t);
                 recPerfionItems.demand12months := GetUsageLast12Months(bcItems."No.");
+                recPerfionItems.demand12monthsretail := GetRetailUsagePctLast12Months(bcItems."No.");
+
                 //Profiler.Stop('GetUsageLast12Months', t, bcItems."No.", '');
                 recPerfionItems.demand1month := GetUsageLast1Month(bcItems."No.");
 
@@ -705,6 +707,50 @@ codeunit 50363 PerfionDataSyncOut
             else
                 itemReference := '';
         end;
+    end;
+
+    local procedure GetRetailUsagePctLast12Months(ItemNo: Code[20]): Decimal
+    var
+        TotalUsageQty: Decimal;
+        RetailUsageQty: Decimal;
+    begin
+        GetUsageBreakdownLast12Months(ItemNo, TotalUsageQty, RetailUsageQty);
+
+        if TotalUsageQty = 0 then
+            exit(0);
+
+        exit(RetailUsageQty / TotalUsageQty * 100);
+    end;
+
+    local procedure GetUsageBreakdownLast12Months(ItemNo: Code[20]; var TotalUsageQty: Decimal; var RetailUsageQty: Decimal)
+    var
+        LAXDPUsageLedEntry: Record "LAX DP Usage Ledger Entry";
+        Customer: Record Customer;
+        StartDate: Date;
+        EndDate: Date;
+    begin
+        EndDate := CALCDATE('-CM-1D', Today);
+        StartDate := CALCDATE('-12M', EndDate);
+
+        TotalUsageQty := 0;
+        RetailUsageQty := 0;
+
+        LAXDPUsageLedEntry.Reset();
+        LAXDPUsageLedEntry.SetCurrentKey("Item No.", "Entry Type", "Usage Date");
+        LAXDPUsageLedEntry.SetRange("Item No.", ItemNo);
+        LAXDPUsageLedEntry.SetRange("Entry Type", LAXDPUsageLedEntry."Entry Type"::Sale);
+        LAXDPUsageLedEntry.SetRange("Usage Date", StartDate, EndDate);
+
+        if LAXDPUsageLedEntry.FindSet() then
+            repeat
+                TotalUsageQty += -LAXDPUsageLedEntry.Quantity;
+
+                if (LAXDPUsageLedEntry."Source No." <> '') and
+                Customer.Get(LAXDPUsageLedEntry."Source No.")
+                then
+                    if Customer."Customer Price Group" = 'R' then
+                        RetailUsageQty += -LAXDPUsageLedEntry.Quantity;
+            until LAXDPUsageLedEntry.Next() = 0;
     end;
 
     local procedure GetUsageLast12Months(ItemNo: Code[20]): Decimal
