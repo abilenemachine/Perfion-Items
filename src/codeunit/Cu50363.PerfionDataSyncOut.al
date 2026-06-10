@@ -30,7 +30,7 @@ codeunit 50363 PerfionDataSyncOut
 
         bcItems.SetRange(Type, Enum::"Item Type"::Inventory);
         bcItems.SetRange(PerfionSync, Enum::PerfionSyncStatus::Accepted);
-        //bcItems.SetFilter("No.", 'AMAR26497-U');
+        bcItems.SetFilter("No.", '%1|%2','AMHXE124868','AMSS10009');
         //bcItems.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMSS10012', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
 
         bcItems.SetLoadFields(
@@ -118,7 +118,7 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems."Last Reciept Date" := GetLastReceiptOrOutputDate(bcItems."No.");
 
                 // turns
-                recPerfionItems.inventoryTurns := CalcItemTurns365(bcItems."No.");
+                recPerfionItems.inventoryTurns :=CalcItemTurns365(bcItems."No.", bcItems."Assembly BOM", bcItems."Item Category Code");
 
                 if bcItems."Assembly BOM" then begin
                     recPerfionItems."Quantity KS" := getBomComponents(bcItems."No.", 'KS');
@@ -298,7 +298,7 @@ codeunit 50363 PerfionDataSyncOut
         case item."Gen. Prod. Posting Group" of
             'COMBINE', 'ENGINE USED', 'TRACTOR':
                 itemVendor := 'USED';
-            'ENGINE REBUILT', 'REBUILT', 'RECON', 'REBUILD':
+            'ENGINE REBUILT', 'REBUILT', 'RECON', 'REBUILD', 'SC REBUILD':
                 itemVendor := 'REMANUFACTURED';
             'FAB', 'NEW', 'NRMACHINE':
                 itemVendor := 'NEW';
@@ -313,10 +313,10 @@ codeunit 50363 PerfionDataSyncOut
         qtyInit: Decimal;
         qtyMin: Decimal;
         qtyPer: Decimal;
-        t: Time;
-        Profiler: Codeunit AbileneProfiler;
+        //t: Time;
+        //Profiler: Codeunit AbileneProfiler;
     begin
-        Profiler.Start('getBomComponents', t);
+        //Profiler.Start('getBomComponents', t);
         qtyPer := 0;
         qty := 0;
         qtyMin := 0;
@@ -350,7 +350,7 @@ codeunit 50363 PerfionDataSyncOut
                         exit(0);
                 end;
             until bComponent.Next() = 0;
-        Profiler.Stop('getBomComponents', t, itemNo, location);
+        //Profiler.Stop('getBomComponents', t, itemNo, location);
         exit(qtyMin);
 
     end;
@@ -366,11 +366,11 @@ codeunit 50363 PerfionDataSyncOut
         qtyFinal: Decimal;
         qtyProduction: Decimal;
         qtyTransfer: Decimal;
-        t: Time;
-        Profiler: Codeunit AbileneProfiler;
+        //t: Time;
+        //Profiler: Codeunit AbileneProfiler;
 
     begin
-        Profiler.Start('getQty', t);
+        //Profiler.Start('getQty', t);
         qtyOnSalesOrder := 0;
         qtyUnsellableBin := 0;
         qtyOnAssy := 0;
@@ -380,41 +380,41 @@ codeunit 50363 PerfionDataSyncOut
         qtyTransfer := 0;
 
         // Sales orders
-        Profiler.Start('qty.SalesLine', t);
+        //Profiler.Start('qty.SalesLine', t);
         qtyOnSalesOrder := getSalesLineQty(itemNo, location);
-        Profiler.Stop('qty.SalesLine', t, itemNo, location);
+        //Profiler.Stop('qty.SalesLine', t, itemNo, location);
 
         // Assembly
-        Profiler.Start('qty.Assembly', t);
+        //Profiler.Start('qty.Assembly', t);
         qtyOnAssy := getAssemblyQty(itemNo, location);
-        Profiler.Stop('qty.Assembly', t, itemNo, location);
+        //Profiler.Stop('qty.Assembly', t, itemNo, location);
 
         // Unsellable bins
-        Profiler.Start('qty.Unsellable', t);
+        //Profiler.Start('qty.Unsellable', t);
         qtyUnsellableBin := getUnsellableQty(itemNo, location);
-        Profiler.Stop('qty.Unsellable', t, itemNo, location);
+        //Profiler.Stop('qty.Unsellable', t, itemNo, location);
 
         // Transfers
-        Profiler.Start('qty.Transfer', t);
+        //Profiler.Start('qty.Transfer', t);
         qtyTransfer := getTransferQty(itemNo, location);
-        Profiler.Stop('qty.Transfer', t, itemNo, location);
+        //Profiler.Stop('qty.Transfer', t, itemNo, location);
 
         // Production
-        Profiler.Start('qty.Production', t);
+        //Profiler.Start('qty.Production', t);
         qtyProduction := getProductionQty(itemNo, location);
-        Profiler.Stop('qty.Production', t, itemNo, location);
+        //Profiler.Stop('qty.Production', t, itemNo, location);
 
         // Ledger
-        Profiler.Start('qty.Ledger', t);
+        //Profiler.Start('qty.Ledger', t);
         qtyiLedger := getLedgerQty(itemNo, location);
-        Profiler.Stop('qty.Ledger', t, itemNo, location);
+        //Profiler.Stop('qty.Ledger', t, itemNo, location);
 
         qtyFinal := qtyiLedger - (qtyOnSalesOrder + qtyOnAssy + qtyUnsellableBin + qtyTransfer + qtyProduction);
 
         if qtyFinal < 0 then
             qtyFinal := 0;
 
-        Profiler.Stop('getQty', t, itemNo, location);
+        //Profiler.Stop('getQty', t, itemNo, location);
         exit(qtyFinal);
     end;
 
@@ -804,20 +804,23 @@ codeunit 50363 PerfionDataSyncOut
         exit(ILE.Quantity);
     end;
 
-    procedure CalcItemTurns365(ItemNo: Code[20]): Decimal
+    procedure CalcItemTurns365(ItemNo: Code[20]; IsAssemblyBom: Boolean; ItemCategoryCode: Code[20]): Decimal
     var
-        ValueEntry: Record "Value Entry";
         Cogs365: Decimal;
         InvValue: Decimal;
     begin
-
         Cogs365 := CalcCogsSalesInvoiceActual365(ItemNo, Today);
         InvValue := CalcInventoryValueAsOf(ItemNo);
+
+        if IsAssemblyBom and (CopyStr(ItemCategoryCode, 1, 3) = 'BLT') then begin
+            Cogs365 += CalcMandatoryAssemblyComponentCogs365(ItemNo, Today);
+            InvValue += CalcMandatoryAssemblyComponentInventoryValue(ItemNo);
+        end;
 
         if InvValue <= 0 then
             exit(0);
 
-        exit(Round(Cogs365 / InvValue));
+        exit(Round(Cogs365 / InvValue, 0.01));
     end;
 
     local procedure CalcCogsSalesInvoiceActual365(ItemNo: Code[20]; AsOfDate: Date): Decimal
@@ -855,6 +858,48 @@ codeunit 50363 PerfionDataSyncOut
         // If you want actual-only:
         ValueEntry.CalcSums("Cost Amount (Actual)");
         exit(ValueEntry."Cost Amount (Actual)");
+    end;
+
+    local procedure CalcMandatoryAssemblyComponentCogs365(ParentItemNo: Code[20]; AsOfDate: Date): Decimal
+    var
+        BomComponent: Record "BOM Component";
+        TotalCogs365: Decimal;
+    begin
+        BomComponent.Reset();
+        BomComponent.SetRange("Parent Item No.", ParentItemNo);
+        BomComponent.SetRange(Type, BomComponent.Type::Item);
+        BomComponent.SetRange(Selection, BomComponent.Selection::Mandatory);
+        BomComponent.SetFilter("Quantity per", '>%1', 0);
+
+        if BomComponent.FindSet() then
+            repeat
+                TotalCogs365 +=
+                    CalcCogsSalesInvoiceActual365(BomComponent."No.", AsOfDate) *
+                    BomComponent."Quantity per";
+            until BomComponent.Next() = 0;
+
+        exit(TotalCogs365);
+    end;
+
+    local procedure CalcMandatoryAssemblyComponentInventoryValue(ParentItemNo: Code[20]): Decimal
+    var
+        BomComponent: Record "BOM Component";
+        TotalInvValue: Decimal;
+    begin
+        BomComponent.Reset();
+        BomComponent.SetRange("Parent Item No.", ParentItemNo);
+        BomComponent.SetRange(Type, BomComponent.Type::Item);
+        BomComponent.SetRange(Selection, BomComponent.Selection::Mandatory);
+        BomComponent.SetFilter("Quantity per", '>%1', 0);
+
+        if BomComponent.FindSet() then
+            repeat
+                TotalInvValue +=
+                    CalcInventoryValueAsOf(BomComponent."No.") *
+                    BomComponent."Quantity per";
+            until BomComponent.Next() = 0;
+
+        exit(TotalInvValue);
     end;
 
     procedure GetLastReceiptOrOutputDate(ItemNo: Code[20]): Date

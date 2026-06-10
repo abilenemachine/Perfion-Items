@@ -40,6 +40,7 @@ page 50155 PerfionDataSyncOutLog
 
                 field(Demand12Months; Rec.demand12months) { }
                 field(Demand1Month; Rec.demand1month) { }
+                field(Turns; Rec.inventoryTurns) { } 
                 field("Excess Amount"; Rec."Excess Amount") { }
 
                 field("Quantity KS"; Rec."Quantity KS") { }
