@@ -30,7 +30,7 @@ codeunit 50363 PerfionDataSyncOut
 
         bcItems.SetRange(Type, Enum::"Item Type"::Inventory);
         bcItems.SetRange(PerfionSync, Enum::PerfionSyncStatus::Accepted);
-        bcItems.SetFilter("No.", '%1|%2','AMHXE124868','AMSS10009');
+        //bcItems.SetFilter("No.", '%1|%2','AMHXE124868','AMSS10009');
         //bcItems.SetFilter("No.", '%1|%2|%3|%4|%5|%6|%7|%8|%9|%10|%11|%12|%13|%14|%15|%16|%17|%18|%19', 'AMX34112', 'AMJD40CABK-L', 'AMJD40UK-L', 'AMJDHK', 'AMJD40CPK', 'AMSS10012', 'AMAH158880', 'HC0935', 'AMX2710106', 'AMAH220019', 'AMAH218490', 'AMHXE36443', 'AMHXE36441', 'AMHXE36439', 'AMHXE80252', 'AMHXE80253', 'AMHXE80254', 'AMHXE36445', 'AMHXE80255');
 
         bcItems.SetLoadFields(
