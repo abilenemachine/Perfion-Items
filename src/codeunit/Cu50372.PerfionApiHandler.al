@@ -41,13 +41,17 @@ codeunit 50372 PerfionApiHandler
     [TryFunction]
     local procedure initPerfion(var token: Text)
     var
+        EnvironmentInformation: Codeunit "Environment Information";
         Response: Text;
         ErrorList: List of [Text];
         ErrorListMsg: Text;
         responseObject: JsonObject;
         dataToken: JsonToken;
     begin
-        baseUrl := 'https://abilene-api.perfioncloud.com/data';
+        if EnvironmentInformation.IsProduction() then
+            baseUrl := 'https://abilene-api.perfioncloud.com/data'
+        else
+            baseUrl := 'https://abilene-api-test.perfioncloud.com/data';
 
         if not getToken(Response, ErrorList) then begin
             errorHandler.enterLog(Process::"API Handler", LogKey::Token, '', GetLastErrorText());
@@ -70,6 +74,7 @@ codeunit 50372 PerfionApiHandler
     [TryFunction]
     local procedure getToken(var CallResponse: Text; var ErrorList: List of [Text])
     var
+        EnvironmentInformation: Codeunit "Environment Information";
         Client: HttpClient;
         RequestContent: HttpContent;
         ResponseMessage: HttpResponseMessage;
@@ -79,7 +84,11 @@ codeunit 50372 PerfionApiHandler
         //LOGIC - Get the token from Perfion. A token last for a period of time. When it expires a new one must get generated.
         //LOGIC - This runs every time to ensure a current token is established
         //NOTE - More info on this can be found here https://perfion.atlassian.net/wiki/spaces/PIM/pages/244330998/Authentication
-        tokenUrl := 'https://abilene-api.perfioncloud.com/token?username=API&password=FrB1%2BW8a0SR1gc3aEKR3Emu%2FQCcwsLAiRBH3W5a0xsQ%3D&grant_type=Password';
+        if EnvironmentInformation.IsProduction() then
+            tokenUrl := 'https://abilene-api.perfioncloud.com/token?username=API&password=FrB1%2BW8a0SR1gc3aEKR3Emu%2FQCcwsLAiRBH3W5a0xsQ%3D&grant_type=Password'
+        else
+            tokenUrl := 'https://abilene-api-test.perfioncloud.com/token?username=API&password=FrB1%2BW8a0SR1gc3aEKR3Emu%2FQCcwsLAiRBH3W5a0xsQ%3D&grant_type=Password';
+        
 
         //LOGIC - Run the GET call on the HttpClient. The tokenUrl is the input and the ResponseMessage is the output.
         if not Client.Get(tokenUrl, ResponseMessage) then begin

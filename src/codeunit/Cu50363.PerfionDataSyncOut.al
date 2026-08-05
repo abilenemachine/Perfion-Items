@@ -498,26 +498,38 @@ codeunit 50363 PerfionDataSyncOut
 
     end;
 
-    local procedure getItemClass(itemNo: Code[20]) itemClass: text[30]
+    local procedure getItemClass(itemNo: Code[20]): Text[30]
     var
         ItemProc: Record "LAX DP Procurement Unit";
     begin
+        // Priority 1: KS
         ItemProc.Reset();
         ItemProc.SetRange("Item No.", itemNo);
-        if ItemProc.FindSet() then
-            repeat
-                if ItemProc."Location Code" = 'KS' then begin
-                    itemClass := ItemProc."Item Class Description";
-                    break;
-                end
-                else begin
-                    itemClass := ItemProc."Item Class Description";
-                    break;
-                end;
+        ItemProc.SetRange("Location Code", 'KS');
 
-            until ItemProc.Next() = 0
-        else
-            itemClass := '';
+        if ItemProc.FindFirst() then
+            exit(ItemProc."Item Class Description");
+
+        // Priority 2: SD
+        ItemProc.SetRange("Location Code", 'SD');
+
+        if ItemProc.FindFirst() then
+            exit(ItemProc."Item Class Description");
+
+        // Priority 3: SC
+        ItemProc.SetRange("Location Code", 'SC');
+
+        if ItemProc.FindFirst() then
+            exit(ItemProc."Item Class Description");
+
+        // Fallback: first record for the item at any location
+        ItemProc.SetRange("Location Code");
+
+        if ItemProc.FindFirst() then
+            exit(ItemProc."Item Class Description");
+
+        // No record exists for the item
+        exit('');
     end;
 
     local procedure getVendor(item: Record Item) itemVendor: text[30]
