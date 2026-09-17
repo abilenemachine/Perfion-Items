@@ -118,7 +118,7 @@ codeunit 50363 PerfionDataSyncOut
                 recPerfionItems."Last Reciept Date" := GetLastReceiptOrOutputDate(bcItems."No.");
 
                 // turns
-                recPerfionItems.inventoryTurns :=CalcItemTurns365(bcItems."No.", bcItems."Assembly BOM", bcItems."Item Category Code");
+                recPerfionItems.inventoryTurns := CalcItemTurns365(bcItems."No.", bcItems."Assembly BOM", bcItems."Item Category Code");
 
                 if bcItems."Assembly BOM" then begin
                     recPerfionItems."Quantity KS" := getBomComponents(bcItems."No.", 'KS');
@@ -313,8 +313,8 @@ codeunit 50363 PerfionDataSyncOut
         qtyInit: Decimal;
         qtyMin: Decimal;
         qtyPer: Decimal;
-        //t: Time;
-        //Profiler: Codeunit AbileneProfiler;
+    //t: Time;
+    //Profiler: Codeunit AbileneProfiler;
     begin
         //Profiler.Start('getBomComponents', t);
         qtyPer := 0;
@@ -366,8 +366,8 @@ codeunit 50363 PerfionDataSyncOut
         qtyFinal: Decimal;
         qtyProduction: Decimal;
         qtyTransfer: Decimal;
-        //t: Time;
-        //Profiler: Codeunit AbileneProfiler;
+    //t: Time;
+    //Profiler: Codeunit AbileneProfiler;
 
     begin
         //Profiler.Start('getQty', t);
@@ -491,7 +491,8 @@ codeunit 50363 PerfionDataSyncOut
         sLines.SetRange("Location Code", location);
         sLines.SetRange("No.", itemNo);
         sLines.SetFilter("Outstanding Qty. (Base)", '<>0');
-        sLines.SetRange("Shipment Date", 0D, Today);
+        //sLines.SetRange("Shipment Date", 0D, Today);
+        sLines.SetRange("Requested Delivery Date", 0D, CalcDate('<+30D>', Today));  //blank date til 30 days out
 
         if sLines.CalcSums("Outstanding Qty. (Base)") then
             value := sLines."Outstanding Qty. (Base)";
@@ -848,7 +849,7 @@ codeunit 50363 PerfionDataSyncOut
         ValueEntry.SetRange("Posting Date", StartDate, AsOfDate);
         ValueEntry.SetRange("Item Ledger Entry Type", ValueEntry."Item Ledger Entry Type"::Sale);
         ValueEntry.SetRange("Document Type", ValueEntry."Document Type"::"Sales Invoice");
-        
+
         ValueEntry.CalcSums("Cost Amount (Actual)");
         // In BC this will usually be negative for sales; make it positive to match your Power BI ABS behavior
         exit(Abs(ValueEntry."Cost Amount (Actual)"));
